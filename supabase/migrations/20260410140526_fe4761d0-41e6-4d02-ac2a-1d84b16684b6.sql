@@ -1,0 +1,1 @@
+ALTER TABLE public.user_settings ADD COLUMN microsoft_client_id TEXT DEFAULT NULL;

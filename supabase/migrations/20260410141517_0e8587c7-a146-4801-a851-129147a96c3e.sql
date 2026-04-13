@@ -1,0 +1,1 @@
+ALTER TABLE public.user_settings ADD COLUMN default_last_week BOOLEAN NOT NULL DEFAULT false;

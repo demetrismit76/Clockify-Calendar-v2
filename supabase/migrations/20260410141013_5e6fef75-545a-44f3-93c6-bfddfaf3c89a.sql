@@ -1,0 +1,1 @@
+ALTER TABLE public.user_settings ADD COLUMN calendar_target TEXT NOT NULL DEFAULT 'microsoft';

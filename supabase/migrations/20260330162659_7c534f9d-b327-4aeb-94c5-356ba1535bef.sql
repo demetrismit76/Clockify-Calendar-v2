@@ -1,0 +1,1 @@
+ALTER TABLE public.user_settings ADD COLUMN IF NOT EXISTS layout_preset text NOT NULL DEFAULT 'default';

@@ -1,0 +1,1 @@
+ALTER TABLE public.user_settings ADD COLUMN IF NOT EXISTS theme_preset text NOT NULL DEFAULT 'default';

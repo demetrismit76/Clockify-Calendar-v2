@@ -398,14 +398,17 @@ export default function Dashboard() {
   };
 
   const generateICS = (selectedData: ClockifyTimeEntry[]) => {
-    let icsContent = 'BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//Syncly//EN\n';
+    const escapeICS = (text: string) => text.replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n');
+    const lines: string[] = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'CALSCALE:GREGORIAN', 'PRODID:-//Syncly//EN'];
     selectedData.forEach((e) => {
       const start = e.timeInterval.start.replace(/[-:]/g, '').split('.')[0] + 'Z';
       const end = e.timeInterval.end.replace(/[-:]/g, '').split('.')[0] + 'Z';
-      const summary = getDisplayDescription(e) || e.projectName || 'Work Item';
-      icsContent += `BEGIN:VEVENT\nDTSTART:${start}\nDTEND:${end}\nSUMMARY:${summary}\nDESCRIPTION:Syncly Bridge Export\nEND:VEVENT\n`;
+      const summary = escapeICS(getDisplayDescription(e) || e.projectName || 'Work Item');
+      const uid = `${e.id}-${Date.now()}@syncly`;
+      lines.push('BEGIN:VEVENT', `UID:${uid}`, `DTSTAMP:${start}`, `DTSTART:${start}`, `DTEND:${end}`, `SUMMARY:${summary}`, `DESCRIPTION:${escapeICS('Syncly Bridge Export')}`, 'END:VEVENT');
     });
-    icsContent += 'END:VCALENDAR';
+    lines.push('END:VCALENDAR');
+    const icsContent = lines.join('\r\n');
     const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');

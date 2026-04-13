@@ -401,8 +401,9 @@ export default function Dashboard() {
     const escapeICS = (text: string) => text.replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n');
     const lines: string[] = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'CALSCALE:GREGORIAN', 'PRODID:-//Syncly//EN'];
     selectedData.forEach((e) => {
-      const start = e.timeInterval.start.replace(/[-:]/g, '').split('.')[0] + 'Z';
-      const end = e.timeInterval.end.replace(/[-:]/g, '').split('.')[0] + 'Z';
+      const fmt = (iso: string) => iso.replace(/[-:]/g, '').replace(/\.\d+/, '').replace(/Z$/, '') + 'Z';
+      const start = fmt(e.timeInterval.start);
+      const end = fmt(e.timeInterval.end);
       const summary = escapeICS(getDisplayDescription(e) || e.projectName || 'Work Item');
       const uid = `${e.id}-${Date.now()}@syncly`;
       lines.push('BEGIN:VEVENT', `UID:${uid}`, `DTSTAMP:${start}`, `DTSTART:${start}`, `DTEND:${end}`, `SUMMARY:${summary}`, `DESCRIPTION:${escapeICS('Syncly Bridge Export')}`, 'END:VEVENT');

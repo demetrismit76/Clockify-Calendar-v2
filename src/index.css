@@ -1,0 +1,172 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+@layer base {
+  :root {
+    --background: 210 20% 98%;
+    --foreground: 220 30% 10%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 220 30% 10%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 30% 10%;
+
+    --primary: 221 83% 53%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 214 20% 94%;
+    --secondary-foreground: 220 30% 10%;
+
+    --muted: 214 20% 94%;
+    --muted-foreground: 215 16% 47%;
+
+    --accent: 234 89% 74%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 214 20% 90%;
+    --input: 214 20% 90%;
+    --ring: 221 83% 53%;
+
+    --radius: 0.75rem;
+
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 221 83% 53%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 214 20% 94%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 221 83% 53%;
+  }
+
+  .dark {
+    --background: 222 47% 7%;
+    --foreground: 210 40% 96%;
+
+    --card: 223 40% 10%;
+    --card-foreground: 210 40% 96%;
+
+    --popover: 223 40% 10%;
+    --popover-foreground: 210 40% 96%;
+
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 210 40% 96%;
+
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 20% 65%;
+
+    --accent: 234 89% 74%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 63% 31%;
+    --destructive-foreground: 210 40% 96%;
+
+    --border: 217 33% 17%;
+    --input: 217 33% 17%;
+    --ring: 217 91% 60%;
+
+    --sidebar-background: 222 47% 7%;
+    --sidebar-foreground: 210 40% 96%;
+    --sidebar-primary: 217 91% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 217 33% 17%;
+    --sidebar-accent-foreground: 210 40% 96%;
+    --sidebar-border: 217 33% 17%;
+    --sidebar-ring: 217 91% 60%;
+  }
+
+  /* Colored sidebar scoped variables — light */
+  :root {
+    --sidebar-cs-bg: 220 40% 13%;
+    --sidebar-cs-fg: 210 40% 96%;
+    --sidebar-cs-card: 220 35% 16%;
+    --sidebar-cs-secondary: 220 30% 20%;
+    --sidebar-cs-muted: 220 30% 20%;
+    --sidebar-cs-muted-fg: 215 20% 55%;
+    --sidebar-cs-border: 220 25% 22%;
+    --sidebar-cs-accent: 220 30% 24%;
+  }
+
+  /* Colored sidebar scoped variables — dark (slightly lighter for contrast) */
+  .dark {
+    --sidebar-cs-bg: 225 35% 10%;
+    --sidebar-cs-fg: 210 40% 96%;
+    --sidebar-cs-card: 225 30% 14%;
+    --sidebar-cs-secondary: 225 25% 18%;
+    --sidebar-cs-muted: 225 25% 18%;
+    --sidebar-cs-muted-fg: 215 20% 60%;
+    --sidebar-cs-border: 225 20% 20%;
+    --sidebar-cs-accent: 225 25% 22%;
+  }
+  }
+
+  .scrollbar-gutter-stable {
+    scrollbar-gutter: stable;
+  }
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-family: 'Inter', sans-serif;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted-foreground) / 0.3);
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.5);
+  }
+
+  /* Fix for dark mode calendar icon */
+  .dark input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(0.8) brightness(1.2);
+    cursor: pointer;
+  }
+}
+
+/* Solid sidebar: seamless continuous block */
+.sidebar-solid {
+  padding: 0 !important;
+}
+
+.sidebar-solid .rounded-lg.border.bg-card,
+.sidebar-solid .rounded-lg.border.shadow-sm,
+.sidebar-solid .rounded-lg.border,
+.sidebar-solid > .bg-card,
+.sidebar-solid > div {
+  background-color: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  margin: 0 !important;
+}
+
+.sidebar-solid > * {
+  padding: 0.75rem 1rem;
+}
+
+.sidebar-solid > * + * {
+  border-top: 1px solid hsl(var(--border) / 0.25);
+}

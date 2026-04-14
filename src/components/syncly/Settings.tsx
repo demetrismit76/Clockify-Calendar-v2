@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Sparkles, Hash, RefreshCw, Eye, EyeOff, Calendar, KeyRound, CheckCircle2, Pencil, SlidersHorizontal } from 'lucide-react';
+import { Sparkles, Hash, RefreshCw, Eye, EyeOff, Calendar, KeyRound, CheckCircle2, Pencil, SlidersHorizontal, Rss, Copy, Check } from 'lucide-react';
 
 interface SettingsProps {
   apiKey: string;
@@ -32,8 +32,17 @@ interface SettingsProps {
   onAiEnabledChange: (enabled: boolean) => void;
   globalAiEnabled?: boolean;
   globalAutoApiEnabled?: boolean;
+  globalCalendarSubscribeEnabled?: boolean;
   includeProjectInDescription: boolean;
   onIncludeProjectInDescriptionChange: (include: boolean) => void;
+  includeProjectPrefixIcs: boolean;
+  onIncludeProjectPrefixIcsChange: (include: boolean) => void;
+  feedUrl: string | null;
+  webcalUrl: string | null;
+  feedLoading: boolean;
+  onEnableFeed: () => void;
+  feedRange: 'day' | 'week' | 'month';
+  onFeedRangeChange: (range: 'day' | 'week' | 'month') => void;
 }
 
 export default function Settings({
@@ -43,8 +52,11 @@ export default function Settings({
   calendarTarget, onCalendarTargetChange,
   googleClientId, onGoogleClientIdChange, isGoogleConnected, onConnectGoogle,
   microsoftClientId, onMicrosoftClientIdChange, isMicrosoftConnected, onConnectMicrosoft,
-  aiEnabled, onAiEnabledChange, globalAiEnabled = true, globalAutoApiEnabled = true,
+  aiEnabled, onAiEnabledChange, globalAiEnabled = true, globalAutoApiEnabled = true, globalCalendarSubscribeEnabled = true,
   includeProjectInDescription, onIncludeProjectInDescriptionChange,
+  includeProjectPrefixIcs, onIncludeProjectPrefixIcsChange,
+  feedUrl, webcalUrl, feedLoading, onEnableFeed,
+  feedRange, onFeedRangeChange,
 }: SettingsProps) {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editKey, setEditKey] = useState('');
@@ -53,6 +65,7 @@ export default function Settings({
   const [editGoogleId, setEditGoogleId] = useState('');
   const [msEditOpen, setMsEditOpen] = useState(false);
   const [editMsId, setEditMsId] = useState('');
+  const [copied, setCopied] = useState(false);
   const hasKey = apiKey.length > 10;
   const hasGoogleId = googleClientId.length > 10;
   const hasMsId = microsoftClientId.length > 10;
@@ -199,9 +212,85 @@ export default function Settings({
               </span>
               <Switch checked={includeProjectInDescription} onCheckedChange={onIncludeProjectInDescriptionChange} className="scale-90" />
             </label>
+
+            <label className="flex items-center justify-between cursor-pointer p-2 rounded-lg hover:bg-secondary/50 transition-colors">
+              <span className="text-xs font-medium text-muted-foreground flex items-center gap-2">
+                <Calendar className="w-3.5 h-3.5 text-primary" />
+                "Project:" Prefix in ICS
+              </span>
+              <Switch checked={includeProjectPrefixIcs} onCheckedChange={onIncludeProjectPrefixIcsChange} className="scale-90" />
+            </label>
           </div>
         </CardContent>
       </Card>
+
+      {/* Webcal Subscribe Feed */}
+      {globalCalendarSubscribeEnabled && (
+      <Card>
+        <CardHeader className="pb-3">
+          <h2 className="text-[11px] font-bold uppercase tracking-widest text-foreground flex items-center gap-2">
+            <Rss className="w-3.5 h-3.5 text-primary" />
+            Calendar Subscribe
+          </h2>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {feedLoading ? (
+            <p className="text-xs text-muted-foreground">Loading...</p>
+          ) : feedUrl ? (
+            <>
+              <p className="text-[10px] text-muted-foreground">
+                Use this URL to subscribe in Outlook, Google Calendar, or Apple Calendar. It will auto-update when you export.
+              </p>
+              <div className="flex bg-secondary rounded-xl p-1 mt-2">
+                {(['day', 'week', 'month'] as const).map((r) => (
+                  <button
+                    key={r}
+                    onClick={() => onFeedRangeChange(r)}
+                    className={`flex-1 py-1.5 px-3 rounded-lg text-[10px] uppercase font-bold tracking-widest transition-all ${
+                      feedRange === r
+                        ? 'bg-card text-foreground shadow-sm ring-1 ring-border'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    {r === 'day' ? 'Today' : r === 'week' ? 'Week' : 'Month'}
+                  </button>
+                ))}
+              </div>
+              <div className="flex gap-2 items-center mt-2">
+                <Input
+                  readOnly
+                  value={webcalUrl || ''}
+                  className="text-[10px] bg-secondary/50 font-mono"
+                  onFocus={(e) => e.target.select()}
+                />
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="shrink-0"
+                  onClick={() => {
+                    navigator.clipboard.writeText(webcalUrl || '');
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
+                  }}
+                  title="Copy URL"
+                >
+                  {copied ? <Check className="w-4 h-4 text-primary" /> : <Copy className="w-4 h-4" />}
+                </Button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="text-[10px] text-muted-foreground">
+                Enable a live calendar feed URL that auto-updates when you export entries.
+              </p>
+              <Button size="sm" className="w-full" onClick={onEnableFeed}>
+                Enable Calendar Feed
+              </Button>
+            </>
+          )}
+        </CardContent>
+      </Card>
+      )}
 
       {syncMode === 'auto' && (
         <Card>

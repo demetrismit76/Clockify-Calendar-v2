@@ -1,0 +1,1 @@
+ALTER TABLE public.user_settings ADD COLUMN include_project_prefix_ics boolean NOT NULL DEFAULT false;

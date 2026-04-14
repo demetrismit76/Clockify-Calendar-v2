@@ -1,0 +1,1 @@
+ALTER TABLE public.calendar_feeds ADD COLUMN feed_range text NOT NULL DEFAULT 'week';

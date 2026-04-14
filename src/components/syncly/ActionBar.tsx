@@ -14,13 +14,14 @@ interface ActionBarProps {
   onClearSelection: () => void;
   onOpenReport?: () => void;
   hasEntries?: boolean;
+  autoApiEnabled?: boolean;
 }
 
 export default function ActionBar({
   selectedCount, totalCount, syncMode, syncStatus,
   calendarTarget,
   onSync, onExportCSV, onClearSelection,
-  onOpenReport, hasEntries,
+  onOpenReport, hasEntries, autoApiEnabled,
 }: ActionBarProps) {
   const [showGuide, setShowGuide] = useState(false);
 
@@ -120,42 +121,11 @@ export default function ActionBar({
               <ol className="list-decimal list-inside space-y-1.5 text-xs text-muted-foreground pl-1">
                 <li>Download the <span className="font-medium text-foreground">.ics</span> file using <span className="font-medium text-foreground">Export .ics</span></li>
                 <li>Open <span className="font-medium text-foreground">Outlook</span> → File → Open & Export → Import/Export</li>
-                <li>Select <span className="font-medium text-foreground">"Import an iCalendar (.ics) file"</span></li>
-                <li>Choose the downloaded file and click <span className="font-medium text-foreground">Import</span></li>
+                <li>Select <span className="font-medium text-foreground">"Import an iCalendar (.ics) or vCalendar file (.vcs)"</span> then click <span className="font-medium text-foreground">Next</span></li>
+                <li>Browse to the downloaded file and click <span className="font-medium text-foreground">OK</span></li>
+                <li>Select <span className="font-medium text-foreground">Open as New</span> — events are added to your calendar</li>
               </ol>
-              <p className="text-[10px] text-muted-foreground/70 pl-1">Or simply double-click the .ics file to open it in Outlook.</p>
-            </div>
-
-            <div className="border-t border-border" />
-
-            {/* Google Calendar */}
-            <div className="space-y-2">
-              <h3 className="text-[11px] font-bold uppercase tracking-widest text-foreground flex items-center gap-2">
-                <Upload className="w-3.5 h-3.5 text-primary" />
-                Auto-sync to Google Calendar
-              </h3>
-              <ol className="list-decimal list-inside space-y-1.5 text-xs text-muted-foreground pl-1">
-                <li>Switch to <span className="font-medium text-foreground">Auto API</span> mode in Settings</li>
-                <li>Select <span className="font-medium text-foreground">Google</span> as your calendar target</li>
-                <li>Paste your <span className="font-medium text-foreground">Google Client ID</span> and click <span className="font-medium text-foreground">Connect Google</span></li>
-                <li>Select entries and click <span className="font-medium text-foreground">Upload to Google</span></li>
-              </ol>
-            </div>
-
-            <div className="border-t border-border" />
-
-            {/* Microsoft Calendar */}
-            <div className="space-y-2">
-              <h3 className="text-[11px] font-bold uppercase tracking-widest text-foreground flex items-center gap-2">
-                <Upload className="w-3.5 h-3.5 text-primary" />
-                Auto-sync to Outlook (Microsoft)
-              </h3>
-              <ol className="list-decimal list-inside space-y-1.5 text-xs text-muted-foreground pl-1">
-                <li>Switch to <span className="font-medium text-foreground">Auto API</span> mode in Settings</li>
-                <li>Select <span className="font-medium text-foreground">Microsoft</span> as your calendar target</li>
-                <li>Paste your <span className="font-medium text-foreground">Azure Client ID</span> and click <span className="font-medium text-foreground">Connect Microsoft</span></li>
-                <li>Select entries and click <span className="font-medium text-foreground">Upload to Outlook</span></li>
-              </ol>
+              <p className="text-[10px] text-muted-foreground/70 pl-1">Tip: You can also double-click the .ics file to open it directly in Outlook.</p>
             </div>
 
             <div className="border-t border-border" />
@@ -170,6 +140,43 @@ export default function ActionBar({
                 Click the <span className="font-medium text-foreground">CSV icon</span> in the action bar to download a spreadsheet of your selected entries with date, project, description, times, and duration.
               </p>
             </div>
+
+            {/* Auto-sync sections only when enabled */}
+            {autoApiEnabled && (
+              <>
+                <div className="border-t border-border" />
+
+                {/* Google Calendar */}
+                <div className="space-y-2">
+                  <h3 className="text-[11px] font-bold uppercase tracking-widest text-foreground flex items-center gap-2">
+                    <Upload className="w-3.5 h-3.5 text-primary" />
+                    Auto-sync to Google Calendar
+                  </h3>
+                  <ol className="list-decimal list-inside space-y-1.5 text-xs text-muted-foreground pl-1">
+                    <li>Switch to <span className="font-medium text-foreground">Auto API</span> mode in Settings</li>
+                    <li>Select <span className="font-medium text-foreground">Google</span> as your calendar target</li>
+                    <li>Paste your <span className="font-medium text-foreground">Google Client ID</span> and click <span className="font-medium text-foreground">Connect Google</span></li>
+                    <li>Select entries and click <span className="font-medium text-foreground">Upload to Google</span></li>
+                  </ol>
+                </div>
+
+                <div className="border-t border-border" />
+
+                {/* Microsoft Calendar */}
+                <div className="space-y-2">
+                  <h3 className="text-[11px] font-bold uppercase tracking-widest text-foreground flex items-center gap-2">
+                    <Upload className="w-3.5 h-3.5 text-primary" />
+                    Auto-sync to Outlook (Microsoft)
+                  </h3>
+                  <ol className="list-decimal list-inside space-y-1.5 text-xs text-muted-foreground pl-1">
+                    <li>Switch to <span className="font-medium text-foreground">Auto API</span> mode in Settings</li>
+                    <li>Select <span className="font-medium text-foreground">Microsoft</span> as your calendar target</li>
+                    <li>Paste your <span className="font-medium text-foreground">Azure Client ID</span> and click <span className="font-medium text-foreground">Connect Microsoft</span></li>
+                    <li>Select entries and click <span className="font-medium text-foreground">Upload to Outlook</span></li>
+                  </ol>
+                </div>
+              </>
+            )}
           </div>
         </DialogContent>
       </Dialog>

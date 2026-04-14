@@ -11,12 +11,12 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   ArrowLeft, Shield, Users, Activity, Settings, Search,
   Crown, UserCheck, UserX, RefreshCw, Bell, BarChart3,
   Globe, Clock, Zap, ChevronDown, ChevronUp, CalendarDays, Palette,
-  Ban, Trash2, AlertTriangle, Eye, Briefcase, Rss
+  Ban, Trash2, AlertTriangle, Eye, Briefcase, Rss, Mail, MailOpen
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
@@ -52,16 +52,19 @@ interface AppSetting {
   updated_at: string;
 }
 
-type AdminTab = 'overview' | 'users' | 'teams' | 'settings' | 'activity' | 'themes';
+type AdminTab = 'overview' | 'users' | 'teams' | 'settings' | 'activity' | 'themes' | 'notifications';
 
 export default function Admin() {
   const { user } = useAuth();
   const { isAdmin, isManager, loading: roleLoading } = useUserRole();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const location = useLocation();
   const canAccess = isAdmin || isManager;
 
-  const [tab, setTab] = useState<AdminTab>('overview');
+  // Allow navigating to a specific tab via location state
+  const initialTab = (location.state as any)?.tab as AdminTab | undefined;
+  const [tab, setTab] = useState<AdminTab>(initialTab || 'overview');
   const [users, setUsers] = useState<UserWithRole[]>([]);
   const [appSettings, setAppSettings] = useState<AppSetting[]>([]);
   const [syncHistory, setSyncHistory] = useState<any[]>([]);
@@ -69,6 +72,12 @@ export default function Admin() {
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedUser, setExpandedUser] = useState<string | null>(null);
   const [confirmAction, setConfirmAction] = useState<{ type: 'ban' | 'delete'; userId: string; name: string } | null>(null);
+  const [announcements, setAnnouncements] = useState<{ id: string; message: string; type: string; active: boolean; created_at: string }[]>([]);
+  const [myReadIds, setMyReadIds] = useState<Set<string>>(new Set());
+  const [newAnnouncementMsg, setNewAnnouncementMsg] = useState('');
+  const [newAnnouncementType, setNewAnnouncementType] = useState('info');
+  const [adminReadKeys, setAdminReadKeys] = useState<Set<string>>(new Set());
+  const [adminAlerts, setAdminAlerts] = useState<{ id: string; label: string; count: number }[]>([]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -122,9 +131,116 @@ export default function Admin() {
     setLoading(false);
   }, []);
 
+  const fetchAnnouncements = useCallback(async () => {
+    const [annRes, readsRes] = await Promise.all([
+      supabase.from('announcements').select('*').order('created_at', { ascending: false }).limit(50),
+      user ? supabase.from('notification_reads').select('announcement_id').eq('user_id', user.id) : Promise.resolve({ data: [] }),
+    ]);
+    if (annRes.data) setAnnouncements(annRes.data as any);
+    if (readsRes.data) setMyReadIds(new Set((readsRes.data as any[]).map((r) => r.announcement_id)));
+  }, [user]);
+
+  const fetchAdminAlerts = useCallback(async () => {
+    if (!user) return;
+    // Fetch read keys
+    const { data: readData } = await supabase
+      .from('admin_notification_reads')
+      .select('notification_key')
+      .eq('user_id', user.id);
+    if (readData) setAdminReadKeys(new Set(readData.map((r: any) => r.notification_key)));
+
+    // Build alerts
+    const alerts: { id: string; label: string; count: number }[] = [];
+    const { count: pendingCount } = await supabase
+      .from('user_settings')
+      .select('*', { count: 'exact', head: true })
+      .eq('approved', false)
+      .eq('banned', false);
+    if (pendingCount && pendingCount > 0) {
+      alerts.push({ id: 'pending', label: `${pendingCount} user${pendingCount > 1 ? 's' : ''} pending approval`, count: pendingCount });
+    }
+    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { count: newCount } = await supabase
+      .from('profiles')
+      .select('*', { count: 'exact', head: true })
+      .gte('created_at', yesterday);
+    if (newCount && newCount > 0) {
+      alerts.push({ id: 'new_registrations', label: `${newCount} new registration${newCount > 1 ? 's' : ''} today`, count: newCount });
+    }
+    const { data: allProfiles } = await supabase.from('profiles').select('user_id');
+    const { data: teamedUsers } = await supabase.from('team_members').select('user_id');
+    if (allProfiles && teamedUsers) {
+      const teamedSet = new Set(teamedUsers.map((t: any) => t.user_id));
+      const unteamedCount = allProfiles.filter((p: any) => !teamedSet.has(p.user_id)).length;
+      if (unteamedCount > 0) {
+        alerts.push({ id: 'unteamed', label: `${unteamedCount} user${unteamedCount > 1 ? 's' : ''} without a team`, count: unteamedCount });
+      }
+    }
+    setAdminAlerts(alerts);
+  }, [user]);
+
+  const toggleAdminAlertRead = async (alertId: string) => {
+    if (!user) return;
+    const isRead = adminReadKeys.has(alertId);
+    if (isRead) {
+      await supabase.from('admin_notification_reads').delete().eq('user_id', user.id).eq('notification_key', alertId);
+      setAdminReadKeys((prev) => { const next = new Set(prev); next.delete(alertId); return next; });
+      toast({ title: 'Marked as unread', description: 'This alert will reappear in the bell.' });
+    } else {
+      await supabase.from('admin_notification_reads').insert({ user_id: user.id, notification_key: alertId } as any);
+      setAdminReadKeys((prev) => new Set(prev).add(alertId));
+      toast({ title: 'Marked as read' });
+    }
+  };
+
   useEffect(() => {
-    if (canAccess) fetchData();
-  }, [canAccess, fetchData]);
+    if (canAccess) {
+      fetchData();
+      fetchAnnouncements();
+      fetchAdminAlerts();
+    }
+  }, [canAccess, fetchData, fetchAnnouncements, fetchAdminAlerts]);
+
+  const postAnnouncement = async () => {
+    if (!newAnnouncementMsg.trim()) return;
+    const { error } = await supabase.from('announcements').insert({
+      message: newAnnouncementMsg.trim(),
+      type: newAnnouncementType,
+      active: true,
+      created_by: user?.id,
+    } as any);
+    if (error) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    } else {
+      toast({ title: 'Announcement posted' });
+      setNewAnnouncementMsg('');
+      fetchAnnouncements();
+    }
+  };
+
+  const toggleAnnouncementActive = async (id: string, active: boolean) => {
+    await supabase.from('announcements').update({ active: !active } as any).eq('id', id);
+    fetchAnnouncements();
+  };
+
+  const deleteAnnouncement = async (id: string) => {
+    await supabase.from('announcements').delete().eq('id', id);
+    fetchAnnouncements();
+  };
+
+  const toggleMyRead = async (announcementId: string) => {
+    if (!user) return;
+    const isRead = myReadIds.has(announcementId);
+    if (isRead) {
+      await supabase.from('notification_reads').delete().eq('user_id', user.id).eq('announcement_id', announcementId);
+      setMyReadIds((prev) => { const next = new Set(prev); next.delete(announcementId); return next; });
+      toast({ title: 'Marked as unread', description: 'This notification will appear again.' });
+    } else {
+      await supabase.from('notification_reads').insert({ user_id: user.id, announcement_id: announcementId } as any);
+      setMyReadIds((prev) => new Set(prev).add(announcementId));
+      toast({ title: 'Marked as read' });
+    }
+  };
 
   const toggleAdminRole = async (targetUserId: string, currentRoles: string[]) => {
     if (targetUserId === user?.id) {
@@ -267,9 +383,13 @@ export default function Admin() {
   const autoApiSetting = appSettings.find((s) => s.key === 'auto_api_enabled');
   const calendarSubscribeSetting = appSettings.find((s) => s.key === 'calendar_subscribe_enabled');
 
-  const tabs: { key: AdminTab; label: string; icon: any }[] = [
+  const unreadAdminAlerts = adminAlerts.filter((a) => !adminReadKeys.has(a.id));
+  const notifBadgeCount = unreadAdminAlerts.length + announcements.filter((a) => a.active && !myReadIds.has(a.id)).length;
+
+  const tabs: { key: AdminTab; label: string; icon: any; badge?: number }[] = [
     { key: 'overview', label: 'Overview', icon: BarChart3 },
     { key: 'users', label: 'Users', icon: Users },
+    { key: 'notifications', label: 'Notifications', icon: Bell, badge: notifBadgeCount > 0 ? notifBadgeCount : undefined },
     { key: 'teams', label: 'Teams', icon: Users },
     { key: 'themes', label: 'Themes', icon: Palette },
     { key: 'activity', label: 'Activity', icon: Activity },
@@ -317,6 +437,11 @@ export default function Admin() {
             >
               <t.icon className="w-3.5 h-3.5" />
               {t.label}
+              {t.badge && (
+                <span className="min-w-[16px] h-4 px-1 bg-destructive text-destructive-foreground text-[9px] font-bold rounded-full flex items-center justify-center leading-none">
+                  {t.badge}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -691,6 +816,133 @@ export default function Admin() {
               </div>
             )}
 
+            {/* Notifications Tab */}
+            {tab === 'notifications' && (
+              <div className="space-y-6">
+                {/* Admin System Alerts */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-xs font-bold uppercase tracking-widest flex items-center gap-2">
+                      <Bell className="w-4 h-4 text-primary" />
+                      System Alerts
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    {adminAlerts.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">All clear — no system alerts.</p>
+                    ) : (
+                      <>
+                        {adminAlerts.filter((a) => !adminReadKeys.has(a.id)).length > 0 && (
+                          <div className="space-y-2">
+                            <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                              Unread ({adminAlerts.filter((a) => !adminReadKeys.has(a.id)).length})
+                            </label>
+                            {adminAlerts.filter((a) => !adminReadKeys.has(a.id)).map((a) => (
+                              <div key={a.id} className="flex items-center gap-3 p-3 rounded-xl border bg-primary/5 border-primary/20">
+                                <Bell className="w-4 h-4 text-primary shrink-0" />
+                                <span className="flex-1 text-xs font-medium text-foreground">{a.label}</span>
+                                <Button variant="ghost" size="icon" className="w-7 h-7 shrink-0" onClick={() => toggleAdminAlertRead(a.id)} title="Mark as read">
+                                  <MailOpen className="w-3.5 h-3.5 text-muted-foreground" />
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {adminAlerts.filter((a) => adminReadKeys.has(a.id)).length > 0 && (
+                          <div className="space-y-2">
+                            <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                              Read ({adminAlerts.filter((a) => adminReadKeys.has(a.id)).length})
+                            </label>
+                            {adminAlerts.filter((a) => adminReadKeys.has(a.id)).map((a) => (
+                              <div key={a.id} className="flex items-center gap-3 p-3 rounded-xl border border-border bg-secondary/20 opacity-60">
+                                <Bell className="w-4 h-4 text-muted-foreground shrink-0" />
+                                <span className="flex-1 text-xs font-medium text-foreground">{a.label}</span>
+                                <Button variant="ghost" size="icon" className="w-7 h-7 shrink-0" onClick={() => toggleAdminAlertRead(a.id)} title="Mark as unread">
+                                  <Mail className="w-3.5 h-3.5 text-muted-foreground" />
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Announcement Notifications */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-xs font-bold uppercase tracking-widest flex items-center gap-2">
+                      <Mail className="w-4 h-4 text-primary" />
+                      Announcement Notifications
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {(() => {
+                      const activeAnns = announcements.filter((a) => a.active);
+                      const unread = activeAnns.filter((a) => !myReadIds.has(a.id));
+                      const read = activeAnns.filter((a) => myReadIds.has(a.id));
+
+                      if (activeAnns.length === 0) {
+                        return <p className="text-xs text-muted-foreground">No active announcements.</p>;
+                      }
+
+                      return (
+                        <div className="space-y-4">
+                          {unread.length > 0 && (
+                            <div className="space-y-2">
+                              <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                                Unread ({unread.length})
+                              </label>
+                              {unread.map((a) => (
+                                <div key={a.id} className="flex items-start gap-3 p-3 rounded-xl border bg-primary/5 border-primary/20">
+                                  <Mail className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-xs font-medium text-foreground">{a.message}</p>
+                                    <p className="text-[9px] text-muted-foreground mt-1">
+                                      {new Date(a.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                      {' · '}
+                                      <span className="capitalize">{a.type}</span>
+                                    </p>
+                                  </div>
+                                  <Button variant="ghost" size="icon" className="w-7 h-7 shrink-0" onClick={() => toggleMyRead(a.id)} title="Mark as read">
+                                    <MailOpen className="w-3.5 h-3.5 text-muted-foreground" />
+                                  </Button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {read.length > 0 && (
+                            <div className="space-y-2">
+                              <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                                Read ({read.length})
+                              </label>
+                              {read.map((a) => (
+                                <div key={a.id} className="flex items-start gap-3 p-3 rounded-xl border border-border bg-secondary/20 opacity-60">
+                                  <MailOpen className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-xs font-medium text-foreground">{a.message}</p>
+                                    <p className="text-[9px] text-muted-foreground mt-1">
+                                      {new Date(a.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                      {' · '}
+                                      <span className="capitalize">{a.type}</span>
+                                    </p>
+                                  </div>
+                                  <Button variant="ghost" size="icon" className="w-7 h-7 shrink-0" onClick={() => toggleMyRead(a.id)} title="Mark as unread">
+                                    <Mail className="w-3.5 h-3.5 text-muted-foreground" />
+                                  </Button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
             {/* Settings Tab */}
             {tab === 'settings' && (
               <div className="space-y-6">
@@ -836,57 +1088,64 @@ export default function Admin() {
                   <CardHeader>
                     <CardTitle className="text-xs font-bold uppercase tracking-widest flex items-center gap-2">
                       <Bell className="w-4 h-4 text-primary" />
-                      Announcement Banner
+                      Announcements
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <label className="flex items-center justify-between cursor-pointer p-3 rounded-xl hover:bg-secondary/30 transition-colors">
-                      <span className="text-sm font-semibold">Show Banner</span>
-                      <Switch
-                        checked={announcementSetting?.value?.enabled || false}
-                        onCheckedChange={(checked) =>
-                          updateAppSetting('announcement', {
-                            ...announcementSetting?.value,
-                            enabled: checked,
-                          })
-                        }
-                      />
-                    </label>
-                    <div>
-                      <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2">Message</label>
+                    {/* Post new announcement */}
+                    <div className="space-y-3 p-4 bg-secondary/20 rounded-xl border border-border">
+                      <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest">New Announcement</label>
                       <Textarea
-                        value={announcementSetting?.value?.message || ''}
-                        onChange={(e) =>
-                          updateAppSetting('announcement', {
-                            ...announcementSetting?.value,
-                            message: e.target.value,
-                          })
-                        }
+                        value={newAnnouncementMsg}
+                        onChange={(e) => setNewAnnouncementMsg(e.target.value)}
                         placeholder="Enter announcement message..."
                         className="bg-secondary/50 min-h-[80px] resize-none"
                       />
+                      <div className="flex items-center gap-3">
+                        <Select value={newAnnouncementType} onValueChange={setNewAnnouncementType}>
+                          <SelectTrigger className="bg-secondary/50 w-32">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="info">Info</SelectItem>
+                            <SelectItem value="warning">Warning</SelectItem>
+                            <SelectItem value="success">Success</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Button onClick={postAnnouncement} disabled={!newAnnouncementMsg.trim()} size="sm" className="flex-1">
+                          Post Announcement
+                        </Button>
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2">Type</label>
-                      <Select
-                        value={announcementSetting?.value?.type || 'info'}
-                        onValueChange={(value) =>
-                          updateAppSetting('announcement', {
-                            ...announcementSetting?.value,
-                            type: value,
-                          })
-                        }
-                      >
-                        <SelectTrigger className="bg-secondary/50">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="info">Info</SelectItem>
-                          <SelectItem value="warning">Warning</SelectItem>
-                          <SelectItem value="success">Success</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+
+                    {/* Existing announcements */}
+                    {announcements.length > 0 && (
+                      <div className="space-y-2">
+                        <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest">History</label>
+                        {announcements.map((a) => (
+                          <div key={a.id} className={`flex items-start gap-3 p-3 rounded-xl border ${a.active ? 'bg-primary/5 border-primary/20' : 'bg-secondary/20 border-border opacity-60'}`}>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-medium text-foreground">{a.message}</p>
+                              <p className="text-[9px] text-muted-foreground mt-1">
+                                {new Date(a.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                {' · '}
+                                <span className="capitalize">{a.type}</span>
+                                {' · '}
+                                <span className={a.active ? 'text-emerald-500' : 'text-muted-foreground'}>{a.active ? 'Active' : 'Inactive'}</span>
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <Button variant="ghost" size="icon" className="w-7 h-7" onClick={() => toggleAnnouncementActive(a.id, a.active)} title={a.active ? 'Deactivate' : 'Activate'}>
+                                <Eye className="w-3.5 h-3.5" />
+                              </Button>
+                              <Button variant="ghost" size="icon" className="w-7 h-7 text-destructive" onClick={() => deleteAnnouncement(a.id)} title="Delete">
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               </div>

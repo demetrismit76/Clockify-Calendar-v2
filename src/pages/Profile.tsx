@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
-import { User, Mail, Shield, Clock, ArrowLeft, Save, Calendar, Activity, Palette } from 'lucide-react';
+import { User, Mail, Shield, Clock, ArrowLeft, Save, Calendar, Activity, Palette, Lock, Eye, EyeOff } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import ThemeGrid from '@/components/syncly/ThemeGrid';
 
@@ -28,6 +28,86 @@ interface SyncHistoryEntry {
   sync_mode: string;
   status: string;
   created_at: string;
+}
+
+function ChangePasswordCard() {
+  const { toast } = useToast();
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [showCurrent, setShowCurrent] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+
+  const handleChangePassword = async () => {
+    if (newPassword.length < 8) {
+      toast({ title: 'Password too short', description: 'Must be at least 8 characters.', variant: 'destructive' });
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast({ title: 'Passwords don\'t match', description: 'New password and confirmation must match.', variant: 'destructive' });
+      return;
+    }
+    setSaving(true);
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    setSaving(false);
+    if (error) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    } else {
+      toast({ title: 'Password updated', description: 'Your password has been changed successfully.' });
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-xs font-bold uppercase tracking-widest flex items-center gap-2">
+          <div className="p-1.5 bg-primary/10 rounded-lg text-primary">
+            <Lock className="w-3.5 h-3.5" />
+          </div>
+          Change Password
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        <div className="relative">
+          <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2">New Password</label>
+          <div className="relative">
+            <Input
+              type={showNew ? 'text' : 'password'}
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="Min. 8 characters"
+              className="bg-secondary/50 pr-10"
+            />
+            <button
+              type="button"
+              onClick={() => setShowNew(!showNew)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+            >
+              {showNew ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+            </button>
+          </div>
+        </div>
+        <div>
+          <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2">Confirm New Password</label>
+          <Input
+            type="password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            placeholder="Re-enter new password"
+            className="bg-secondary/50"
+          />
+        </div>
+        <Button onClick={handleChangePassword} disabled={saving || !newPassword || !confirmPassword} variant="outline" className="w-full">
+          <Lock className="w-4 h-4 mr-2" />
+          {saving ? 'Updating...' : 'Update Password'}
+        </Button>
+      </CardContent>
+    </Card>
+  );
 }
 
 export default function Profile() {
@@ -194,6 +274,9 @@ export default function Profile() {
             </Button>
           </CardContent>
         </Card>
+
+        {/* Change Password */}
+        <ChangePasswordCard />
 
         {/* Theme */}
         <Card>

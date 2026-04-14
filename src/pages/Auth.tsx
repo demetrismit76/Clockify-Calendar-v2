@@ -50,7 +50,7 @@ export default function Auth() {
           </div>
           <h1 className="text-3xl font-bold tracking-tight text-foreground">Syncly</h1>
           <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground font-semibold">
-            Clockify → Google Calendar Bridge
+            Clockify → Calendar Bridge
           </p>
         </div>
 

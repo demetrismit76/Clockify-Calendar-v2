@@ -18,6 +18,7 @@ import TimesheetReport from '@/components/syncly/TimesheetReport';
 import ClockifySetupDialog from '@/components/syncly/ClockifySetupDialog';
 import TeamReport from '@/components/syncly/TeamReport';
 import IcsExportPreview from '@/components/syncly/IcsExportPreview';
+import AnnouncementBanner from '@/components/syncly/AnnouncementBanner';
 import { useUserRole } from '@/hooks/useUserRole';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -728,6 +729,10 @@ export default function Dashboard() {
         onOpenTeamReport={() => setTeamReportOpen(true)}
         isTeamLead={isTeamLead}
       />
+
+      <div className="max-w-[1400px] mx-auto px-4 py-2">
+        <AnnouncementBanner />
+      </div>
 
       <main className={`mx-auto w-full flex-1 ${
         isMinimal ? 'max-w-[900px] px-6 py-6' :

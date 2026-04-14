@@ -1108,6 +1108,7 @@ export default function Dashboard() {
         onClearSelection={() => setSelectedEntries(new Set())}
         onOpenReport={() => setReportOpen(true)}
         hasEntries={entries.length > 0}
+        autoApiEnabled={!!globalAutoApiEnabled}
       />
 
       <SyncToast syncStatus={syncStatus} onDismiss={() => setSyncStatus({ status: 'idle', message: '' })} />

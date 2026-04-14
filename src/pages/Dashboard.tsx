@@ -370,6 +370,20 @@ export default function Dashboard() {
     }
   };
 
+  const recordSync = async (entriesCount: number, syncMode: string, status: string) => {
+    if (!user) return;
+    try {
+      await supabase.from('sync_history').insert({
+        user_id: user.id,
+        entries_count: entriesCount,
+        sync_mode: syncMode,
+        status: status,
+      });
+    } catch (e) {
+      console.error('Failed to record sync history', e);
+    }
+  };
+
   const handleSync = async () => {
     const selectedData = entries.filter((e) => selectedEntries.has(e.id));
     if (selectedData.length === 0) return;
@@ -390,8 +404,10 @@ export default function Dashboard() {
           setSyncStatus((prev) => ({ ...prev, progress: { current, total: selectedData.length } }));
         });
         setSyncStatus({ status: 'success', message: 'Sync Complete' });
+        recordSync(selectedData.length, 'auto', 'success');
       } catch (err: any) {
         setSyncStatus({ status: 'error', message: err.message });
+        recordSync(selectedData.length, 'auto', 'error');
       }
     } else if (isAutoGoogle) {
       if (!googleToken) {
@@ -406,8 +422,10 @@ export default function Dashboard() {
           setSyncStatus((prev) => ({ ...prev, progress: { current, total: selectedData.length } }));
         });
         setSyncStatus({ status: 'success', message: 'Sync Complete' });
+        recordSync(selectedData.length, 'auto', 'success');
       } catch (err: any) {
         setSyncStatus({ status: 'error', message: err.message });
+        recordSync(selectedData.length, 'auto', 'error');
       }
     } else {
       // Manual mode — show preview before ICS download
@@ -481,6 +499,7 @@ export default function Dashboard() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    recordSync(selectedData.length, 'ics_export', 'success');
   };
 
   const generateCSV = () => {
@@ -505,6 +524,7 @@ export default function Dashboard() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    recordSync(selectedData.length, 'csv_export', 'success');
   };
 
   // Persist settings — debounce API key save until validated

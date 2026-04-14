@@ -31,7 +31,7 @@ export default function ActionBar({
 
   return (
     <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-40 w-full max-w-xl px-8">
-      <div className="bg-card/90 backdrop-blur-3xl border border-border rounded-xl px-10 py-5 flex items-center justify-between gap-8 shadow-2xl ring-1 ring-foreground/5">
+      <div className="bg-card/70 backdrop-blur-2xl border border-border/50 rounded-xl px-6 py-4 flex items-center justify-between gap-6 shadow-2xl ring-1 ring-foreground/5 overflow-hidden">
         <div className="flex flex-col">
           <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-[0.25em] mb-1.5">Action Workspace</p>
           <p className="text-2xl font-bold leading-none tracking-tight text-foreground">
@@ -120,12 +120,12 @@ export default function ActionBar({
               </h3>
               <ol className="list-decimal list-inside space-y-1.5 text-xs text-muted-foreground pl-1">
                 <li>Download the <span className="font-medium text-foreground">.ics</span> file using <span className="font-medium text-foreground">Export .ics</span></li>
-                <li>Open <span className="font-medium text-foreground">Outlook</span> → File → Open & Export → Import/Export</li>
-                <li>Select <span className="font-medium text-foreground">"Import an iCalendar (.ics) or vCalendar file (.vcs)"</span> then click <span className="font-medium text-foreground">Next</span></li>
-                <li>Browse to the downloaded file and click <span className="font-medium text-foreground">OK</span></li>
-                <li>Select <span className="font-medium text-foreground">Open as New</span> — events are added to your calendar</li>
+                <li>Open <span className="font-medium text-foreground">Outlook</span> and go to <span className="font-medium text-foreground">Calendar</span></li>
+                <li>Click <span className="font-medium text-foreground">Add calendar</span> in the sidebar</li>
+                <li>Select <span className="font-medium text-foreground">Upload from file</span></li>
+                <li>Browse to or drag the downloaded <span className="font-medium text-foreground">.ics</span> file and click <span className="font-medium text-foreground">Import</span></li>
               </ol>
-              <p className="text-[10px] text-muted-foreground/70 pl-1">Tip: You can also double-click the .ics file to open it directly in Outlook.</p>
+              <p className="text-[10px] text-muted-foreground/70 pl-1">Tip: You can also double-click the .ics file to open it directly in Outlook desktop.</p>
             </div>
 
             <div className="border-t border-border" />

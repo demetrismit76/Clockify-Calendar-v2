@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Sparkles, Hash, RefreshCw, Eye, EyeOff, Calendar, KeyRound, CheckCircle2, Pencil, SlidersHorizontal, Rss, Copy, Check } from 'lucide-react';
+import { Sparkles, Hash, RefreshCw, Eye, EyeOff, Calendar, KeyRound, CheckCircle2, Pencil, SlidersHorizontal, Rss, Copy, Check, Download } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
 
 interface SettingsProps {
   apiKey: string;
@@ -66,6 +67,9 @@ export default function Settings({
   const [msEditOpen, setMsEditOpen] = useState(false);
   const [editMsId, setEditMsId] = useState('');
   const [copied, setCopied] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewContent, setPreviewContent] = useState('');
+  const [previewLoading, setPreviewLoading] = useState(false);
   const hasKey = apiKey.length > 10;
   const hasGoogleId = googleClientId.length > 10;
   const hasMsId = microsoftClientId.length > 10;
@@ -276,6 +280,46 @@ export default function Settings({
                 >
                   {copied ? <Check className="w-4 h-4 text-primary" /> : <Copy className="w-4 h-4" />}
                 </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="shrink-0"
+                  title="Preview feed"
+                  onClick={async () => {
+                    if (!feedUrl) return;
+                    setPreviewLoading(true);
+                    setPreviewOpen(true);
+                    try {
+                      const res = await fetch(feedUrl);
+                      setPreviewContent(await res.text());
+                    } catch {
+                      setPreviewContent('Failed to load feed content.');
+                    }
+                    setPreviewLoading(false);
+                  }}
+                >
+                  <Eye className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="shrink-0"
+                  title="Download .ics"
+                  onClick={async () => {
+                    if (!feedUrl) return;
+                    try {
+                      const res = await fetch(feedUrl);
+                      const blob = new Blob([await res.text()], { type: 'text/calendar' });
+                      const a = document.createElement('a');
+                      a.href = URL.createObjectURL(blob);
+                      a.download = 'syncly-feed.ics';
+                      a.click();
+                      URL.revokeObjectURL(a.href);
+                    } catch { /* silent */ }
+                  }}
+                >
+                  <Download className="w-4 h-4" />
+                </Button>
               </div>
             </>
           ) : (
@@ -484,6 +528,29 @@ export default function Settings({
             </Button>
             <Button size="sm" onClick={() => { onMicrosoftClientIdChange(editMsId); setMsEditOpen(false); }}>
               Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ICS Feed Preview Dialog */}
+      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+        <DialogContent className="max-w-lg max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold">Feed Preview</DialogTitle>
+          </DialogHeader>
+          {previewLoading ? (
+            <p className="text-xs text-muted-foreground py-4">Loading...</p>
+          ) : (
+            <Textarea
+              readOnly
+              value={previewContent}
+              className="flex-1 min-h-[300px] font-mono text-[10px] leading-relaxed resize-none bg-secondary/50"
+            />
+          )}
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setPreviewOpen(false)}>
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -54,6 +54,8 @@ interface DashboardState {
   setSettingsInitialized: (v: boolean) => void;
   defaultLastWeek: boolean;
   setDefaultLastWeek: (v: boolean) => void;
+  includeProjectPrefixIcs: boolean;
+  setIncludeProjectPrefixIcs: (v: boolean) => void;
 }
 
 const DashboardContext = createContext<DashboardState | null>(null);
@@ -87,6 +89,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
   const [reportOpen, setReportOpen] = useState(false);
   const [settingsInitialized, setSettingsInitialized] = useState(false);
   const [defaultLastWeek, setDefaultLastWeek] = useState(false);
+  const [includeProjectPrefixIcs, setIncludeProjectPrefixIcs] = useState(false);
 
   return (
     <DashboardContext.Provider value={{
@@ -102,6 +105,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
       workWeekDays, setWorkWeekDays,
       reportOpen, setReportOpen, settingsInitialized, setSettingsInitialized,
       defaultLastWeek, setDefaultLastWeek,
+      includeProjectPrefixIcs, setIncludeProjectPrefixIcs,
     }}>
       {children}
     </DashboardContext.Provider>

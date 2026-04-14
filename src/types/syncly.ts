@@ -60,4 +60,5 @@ export interface UserSettings {
   default_last_week: boolean;
   approved: boolean;
   banned: boolean;
+  include_project_prefix_ics: boolean;
 }

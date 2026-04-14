@@ -38,6 +38,39 @@ export type Database = {
         }
         Relationships: []
       }
+      calendar_feeds: {
+        Row: {
+          created_at: string
+          feed_name: string
+          feed_range: string
+          feed_token: string
+          ics_content: string | null
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          feed_name?: string
+          feed_range?: string
+          feed_token?: string
+          ics_content?: string | null
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          feed_name?: string
+          feed_range?: string
+          feed_token?: string
+          ics_content?: string | null
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -188,6 +221,7 @@ export type Database = {
           google_client_id: string | null
           id: string
           include_project_in_description: boolean
+          include_project_prefix_ics: boolean
           layout_preset: string
           microsoft_client_id: string | null
           sync_mode: string
@@ -207,6 +241,7 @@ export type Database = {
           google_client_id?: string | null
           id?: string
           include_project_in_description?: boolean
+          include_project_prefix_ics?: boolean
           layout_preset?: string
           microsoft_client_id?: string | null
           sync_mode?: string
@@ -226,6 +261,7 @@ export type Database = {
           google_client_id?: string | null
           id?: string
           include_project_in_description?: boolean
+          include_project_prefix_ics?: boolean
           layout_preset?: string
           microsoft_client_id?: string | null
           sync_mode?: string

@@ -15,6 +15,7 @@ const defaultSettings: UserSettings = {
   default_last_week: false,
   approved: false,
   banned: false,
+  include_project_prefix_ics: false,
 };
 
 export function useUserSettings() {
@@ -49,6 +50,7 @@ export function useUserSettings() {
           default_last_week: data.default_last_week,
           approved: (data as any).approved ?? false,
           banned: (data as any).banned ?? false,
+          include_project_prefix_ics: (data as any).include_project_prefix_ics ?? false,
         });
       }
       setLoading(false);

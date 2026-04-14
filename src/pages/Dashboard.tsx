@@ -6,6 +6,7 @@ import { MicrosoftCalendarService } from '@/services/microsoftCalendarService';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserSettings } from '@/hooks/useUserSettings';
+import { useCalendarFeed } from '@/hooks/useCalendarFeed';
 import { useDashboardState } from '@/hooks/useDashboardState';
 import Header from '@/components/syncly/Header';
 import Settings from '@/components/syncly/Settings';
@@ -14,7 +15,9 @@ import ActionBar from '@/components/syncly/ActionBar';
 import CalendarView from '@/components/syncly/CalendarView';
 import SyncToast from '@/components/syncly/SyncToast';
 import TimesheetReport from '@/components/syncly/TimesheetReport';
+import ClockifySetupDialog from '@/components/syncly/ClockifySetupDialog';
 import TeamReport from '@/components/syncly/TeamReport';
+import IcsExportPreview from '@/components/syncly/IcsExportPreview';
 import { useUserRole } from '@/hooks/useUserRole';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -27,10 +30,12 @@ import { sidebarColorPresets } from '@/lib/themes';
 export default function Dashboard() {
   const { user } = useAuth();
   const { settings, updateSettings, loading: settingsLoading } = useUserSettings();
+  const { feedUrl, webcalUrl, feedRange, loading: feedLoading, enableFeed, updateFeedRange, updateFeedContent } = useCalendarFeed();
 
   const {
     apiKey, setApiKey, googleClientId, setGoogleClientId, syncMode, setSyncMode,
     aiEnabled, setAiEnabled, includeProjectInDescription, setIncludeProjectInDescription,
+    includeProjectPrefixIcs, setIncludeProjectPrefixIcs,
     theme, setTheme, viewMode, setViewMode, searchQuery, setSearchQuery,
     selectedProjects, setSelectedProjects, hideShortEntries, setHideShortEntries,
     workspaces, setWorkspaces, selectedWorkspace, setSelectedWorkspace,
@@ -47,6 +52,9 @@ export default function Dashboard() {
   const { isTeamLead } = useUserRole();
   const [settingsCollapsed, setSettingsCollapsed] = useState(false);
   const [teamReportOpen, setTeamReportOpen] = useState(false);
+  const [icsPreviewOpen, setIcsPreviewOpen] = useState(false);
+  const [icsPreviewEntries, setIcsPreviewEntries] = useState<ClockifyTimeEntry[]>([]);
+  
   const isTopNav = layoutPreset === 'topnav';
   const isCompact = layoutPreset === 'compact';
   const isMinimal = layoutPreset === 'minimal';
@@ -59,12 +67,14 @@ export default function Dashboard() {
   // Fetch global app settings
   const [globalAiEnabled, setGlobalAiEnabled] = useState(true);
   const [globalAutoApiEnabled, setGlobalAutoApiEnabled] = useState(true);
+  const [globalCalendarSubscribeEnabled, setGlobalCalendarSubscribeEnabled] = useState(true);
   useEffect(() => {
     Promise.all([
       supabase.from('app_settings').select('value').eq('key', 'work_week_days').single(),
       supabase.from('app_settings').select('value').eq('key', 'ai_refinement_enabled').single(),
       supabase.from('app_settings').select('value').eq('key', 'auto_api_enabled').single(),
-    ]).then(([workWeekRes, aiRes, autoApiRes]) => {
+      supabase.from('app_settings').select('value').eq('key', 'calendar_subscribe_enabled').single(),
+    ]).then(([workWeekRes, aiRes, autoApiRes, calSubRes]) => {
       if (workWeekRes.data?.value && typeof workWeekRes.data.value === 'object' && 'days' in (workWeekRes.data.value as any)) {
         setWorkWeekDays((workWeekRes.data.value as any).days);
       }
@@ -73,6 +83,9 @@ export default function Dashboard() {
       }
       if (autoApiRes.data?.value && typeof autoApiRes.data.value === 'object') {
         setGlobalAutoApiEnabled((autoApiRes.data.value as any).enabled ?? true);
+      }
+      if (calSubRes.data?.value && typeof calSubRes.data.value === 'object') {
+        setGlobalCalendarSubscribeEnabled((calSubRes.data.value as any).enabled ?? true);
       }
     });
   }, []);
@@ -87,33 +100,37 @@ export default function Dashboard() {
       setSyncMode(settings.sync_mode as SyncMode);
       setAiEnabled(settings.ai_enabled);
       setIncludeProjectInDescription(settings.include_project_in_description);
+      setIncludeProjectPrefixIcs(settings.include_project_prefix_ics);
       setTheme(settings.dark_mode ? 'dark' : 'light');
       setDefaultLastWeek(settings.default_last_week);
 
-      // Auto-set date range: this week normally, last week on Mon/Tue
+      // Auto-set date range: this week normally, last week on Monday only
       if (settings.default_last_week) {
         const now = new Date();
         const dayOfWeek = now.getDay(); // 0=Sun, 1=Mon, 2=Tue...
-        const isEarlyWeek = dayOfWeek === 1 || dayOfWeek === 2; // Monday or Tuesday
+        const isEarlyWeek = dayOfWeek === 1; // Monday only
 
         const thisMonday = new Date(now);
         thisMonday.setDate(now.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
 
         if (isEarlyWeek) {
-          // Load last week (Mon–Fri)
+          // Load last week (Mon + workWeekDays-1)
           const lastMonday = new Date(thisMonday);
           lastMonday.setDate(thisMonday.getDate() - 7);
-          const lastFriday = new Date(lastMonday);
-          lastFriday.setDate(lastMonday.getDate() + 4);
+          const lastEnd = new Date(lastMonday);
+          lastEnd.setDate(lastMonday.getDate() + (workWeekDays - 1));
           setDateRange({
             start: lastMonday.toISOString().split('T')[0],
-            end: lastFriday.toISOString().split('T')[0],
+            end: lastEnd.toISOString().split('T')[0],
           });
         } else {
-          // Load this week (Mon–today)
+          // Load this week (Mon + workWeekDays-1, capped at today)
+          const weekEnd = new Date(thisMonday);
+          weekEnd.setDate(thisMonday.getDate() + (workWeekDays - 1));
+          const end = now < weekEnd ? now : weekEnd;
           setDateRange({
             start: thisMonday.toISOString().split('T')[0],
-            end: now.toISOString().split('T')[0],
+            end: end.toISOString().split('T')[0],
           });
         }
       }
@@ -392,8 +409,9 @@ export default function Dashboard() {
         setSyncStatus({ status: 'error', message: err.message });
       }
     } else {
-      // Manual mode — ICS download for both targets
-      generateICS(selectedData);
+      // Manual mode — show preview before ICS download
+      setIcsPreviewEntries(selectedData);
+      setIcsPreviewOpen(true);
     }
   };
 
@@ -404,12 +422,55 @@ export default function Dashboard() {
       const fmt = (iso: string) => iso.replace(/[-:]/g, '').replace(/\.\d+/, '').replace(/Z$/, '') + 'Z';
       const start = fmt(e.timeInterval.start);
       const end = fmt(e.timeInterval.end);
-      const summary = escapeICS(getDisplayDescription(e) || e.projectName || 'Work Item');
+      let summary = getDisplayDescription(e) || e.projectName || 'Work Item';
+      if (includeProjectPrefixIcs && e.projectName && e.projectName !== 'No Project') {
+        summary = `Project: ${e.projectName} - ${summary}`;
+      }
+      const escapedSummary = escapeICS(summary);
       const uid = `${e.id}-${Date.now()}@syncly`;
-      lines.push('BEGIN:VEVENT', `UID:${uid}`, `DTSTAMP:${start}`, `DTSTART:${start}`, `DTEND:${end}`, `SUMMARY:${summary}`, `DESCRIPTION:${escapeICS('Syncly Bridge Export')}`, 'END:VEVENT');
+      lines.push('BEGIN:VEVENT', `UID:${uid}`, `DTSTAMP:${start}`, `DTSTART:${start}`, `DTEND:${end}`, `SUMMARY:${escapedSummary}`, `DESCRIPTION:${escapeICS('Syncly Bridge Export')}`, 'END:VEVENT');
     });
     lines.push('END:VCALENDAR');
     const icsContent = lines.join('\r\n');
+    // Also update the webcal feed if enabled, filtered by feedRange
+    if (feedUrl) {
+      const now = new Date();
+      let rangeStart: Date;
+      let rangeEnd: Date;
+      if (feedRange === 'day') {
+        rangeStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        rangeEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+      } else if (feedRange === 'month') {
+        rangeStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        rangeEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+      } else {
+        // week — Monday to Sunday
+        const day = now.getDay();
+        const diff = day === 0 ? 6 : day - 1;
+        rangeStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - diff);
+        rangeEnd = new Date(rangeStart);
+        rangeEnd.setDate(rangeStart.getDate() + 6);
+        rangeEnd.setHours(23, 59, 59, 999);
+      }
+      const feedEntries = selectedData.filter((e) => {
+        const d = new Date(e.timeInterval.start);
+        return d >= rangeStart && d <= rangeEnd;
+      });
+      // Build feed ICS with stable UIDs
+      const feedLines: string[] = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'CALSCALE:GREGORIAN', 'PRODID:-//Syncly//EN', 'X-WR-CALNAME:Syncly Feed'];
+      feedEntries.forEach((e) => {
+        const fmtFeed = (iso: string) => iso.replace(/[-:]/g, '').replace(/\.\d+/, '').replace(/Z$/, '') + 'Z';
+        const s = fmtFeed(e.timeInterval.start);
+        const ed = fmtFeed(e.timeInterval.end);
+        let sum = getDisplayDescription(e) || e.projectName || 'Work Item';
+        if (includeProjectPrefixIcs && e.projectName && e.projectName !== 'No Project') {
+          sum = `Project: ${e.projectName} - ${sum}`;
+        }
+        feedLines.push('BEGIN:VEVENT', `UID:${e.id}@syncly`, `DTSTAMP:${s}`, `DTSTART:${s}`, `DTEND:${ed}`, `SUMMARY:${escapeICS(sum)}`, `DESCRIPTION:${escapeICS('Syncly Bridge Export')}`, 'END:VEVENT');
+      });
+      feedLines.push('END:VCALENDAR');
+      updateFeedContent(feedLines.join('\r\n'));
+    }
     const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -515,18 +576,18 @@ export default function Dashboard() {
             thisMonday.setDate(now.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
             const lastMonday = new Date(thisMonday);
             lastMonday.setDate(thisMonday.getDate() - 7);
-            const lastFriday = new Date(lastMonday);
-            lastFriday.setDate(lastMonday.getDate() + 4);
-            return { start: lastMonday.toISOString().split('T')[0], end: lastFriday.toISOString().split('T')[0] };
+            const lastEnd = new Date(lastMonday);
+            lastEnd.setDate(lastMonday.getDate() + (workWeekDays - 1));
+            return { start: lastMonday.toISOString().split('T')[0], end: lastEnd.toISOString().split('T')[0] };
           }},
           { label: 'This Week', getRange: () => {
             const now = new Date();
             const dayOfWeek = now.getDay();
             const monday = new Date(now);
             monday.setDate(now.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
-            const sunday = new Date(monday);
-            sunday.setDate(monday.getDate() + 6);
-            const end = now < sunday ? now : sunday;
+            const weekEnd = new Date(monday);
+            weekEnd.setDate(monday.getDate() + (workWeekDays - 1));
+            const end = now < weekEnd ? now : weekEnd;
             return { start: monday.toISOString().split('T')[0], end: end.toISOString().split('T')[0] };
           }},
           { label: 'This Month', getRange: () => {
@@ -709,9 +770,18 @@ export default function Dashboard() {
                   aiEnabled={effectiveAiEnabled}
                   globalAiEnabled={globalAiEnabled}
                   globalAutoApiEnabled={globalAutoApiEnabled}
+                  globalCalendarSubscribeEnabled={globalCalendarSubscribeEnabled}
                   onAiEnabledChange={handleAiEnabledChange}
                   includeProjectInDescription={includeProjectInDescription}
                   onIncludeProjectInDescriptionChange={handleIncludeProjectChange}
+                  includeProjectPrefixIcs={includeProjectPrefixIcs}
+                  onIncludeProjectPrefixIcsChange={(v) => { setIncludeProjectPrefixIcs(v); updateSettings({ include_project_prefix_ics: v }); }}
+                  feedUrl={feedUrl}
+                  webcalUrl={webcalUrl}
+                  feedLoading={feedLoading}
+                  onEnableFeed={enableFeed}
+                  feedRange={feedRange}
+                  onFeedRangeChange={updateFeedRange}
                 />
                 <div className="bg-card rounded-lg p-4 border border-border shadow-sm">
                    <h2 className="text-[11px] font-bold uppercase tracking-widest text-foreground mb-3 flex items-center gap-2">
@@ -778,9 +848,18 @@ export default function Dashboard() {
               aiEnabled={effectiveAiEnabled}
               globalAiEnabled={globalAiEnabled}
               globalAutoApiEnabled={globalAutoApiEnabled}
+              globalCalendarSubscribeEnabled={globalCalendarSubscribeEnabled}
               onAiEnabledChange={handleAiEnabledChange}
               includeProjectInDescription={includeProjectInDescription}
               onIncludeProjectInDescriptionChange={handleIncludeProjectChange}
+              includeProjectPrefixIcs={includeProjectPrefixIcs}
+              onIncludeProjectPrefixIcsChange={(v) => { setIncludeProjectPrefixIcs(v); updateSettings({ include_project_prefix_ics: v }); }}
+              feedUrl={feedUrl}
+              webcalUrl={webcalUrl}
+              feedLoading={feedLoading}
+              onEnableFeed={enableFeed}
+              feedRange={feedRange}
+              onFeedRangeChange={updateFeedRange}
             />
 
             {/* Timeline Range */}
@@ -891,9 +970,44 @@ export default function Dashboard() {
                   <Calendar className="w-7 h-7 opacity-20" />
                 </div>
                 <p className="text-lg font-bold text-foreground/70 mb-2 tracking-tight">Timeline Empty</p>
-                <p className="text-xs max-w-[280px] leading-relaxed opacity-60 font-medium uppercase tracking-widest">
-                  Connect your workspace and run a query range to begin sync operations.
+                <p className="text-xs max-w-[280px] leading-relaxed opacity-60 font-medium uppercase tracking-widest mb-6">
+                  {!apiKey ? 'Enter your Clockify API key to get started.' : 'Connect your workspace and run a query range to begin sync operations.'}
                 </p>
+                {!apiKey && (
+                  <div className="w-full max-w-xs space-y-3">
+                    <div className="relative">
+                      <Input
+                        type="password"
+                        placeholder="Paste your Clockify API key..."
+                        className="font-mono text-sm pr-10"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            const val = (e.target as HTMLInputElement).value.trim();
+                            if (val.length > 20) handleApiKeyChange(val);
+                          }
+                        }}
+                        id="empty-state-api-key"
+                      />
+                    </div>
+                    <Button
+                      size="sm"
+                      className="w-full"
+                      onClick={() => {
+                        const input = document.getElementById('empty-state-api-key') as HTMLInputElement;
+                        const val = input?.value?.trim();
+                        if (val && val.length > 20) handleApiKeyChange(val);
+                      }}
+                    >
+                      Save & Connect
+                    </Button>
+                    <p className="text-[10px] text-muted-foreground/60">
+                      Find your key at{' '}
+                      <a href="https://app.clockify.me/user/preferences#advanced" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                        Clockify Settings → API
+                      </a>
+                    </p>
+                  </div>
+                )}
               </div>
             ) : filteredEntries.length === 0 ? (
               <div className="h-[280px] flex flex-col items-center justify-center text-muted-foreground bg-card rounded-lg border border-border transition-all">
@@ -1008,6 +1122,14 @@ export default function Dashboard() {
       {isTeamLead && (
         <TeamReport open={teamReportOpen} onOpenChange={setTeamReportOpen} />
       )}
+
+      <IcsExportPreview
+        open={icsPreviewOpen}
+        onOpenChange={setIcsPreviewOpen}
+        entries={icsPreviewEntries}
+        dateRange={dateRange}
+        onConfirmExport={() => generateICS(icsPreviewEntries)}
+      />
     </div>
   );
 }

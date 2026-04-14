@@ -16,7 +16,7 @@ import {
   ArrowLeft, Shield, Users, Activity, Settings, Search,
   Crown, UserCheck, UserX, RefreshCw, Bell, BarChart3,
   Globe, Clock, Zap, ChevronDown, ChevronUp, CalendarDays, Palette,
-  Ban, Trash2, AlertTriangle, Eye, Briefcase
+  Ban, Trash2, AlertTriangle, Eye, Briefcase, Rss
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
@@ -215,8 +215,7 @@ export default function Admin() {
   const updateAppSetting = async (key: string, value: any) => {
     const { error } = await supabase
       .from('app_settings')
-      .update({ value, updated_by: user?.id } as any)
-      .eq('key', key);
+      .upsert({ key, value, updated_by: user?.id } as any, { onConflict: 'key' });
     if (error) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
     } else {
@@ -266,6 +265,7 @@ export default function Admin() {
   const workWeekSetting = appSettings.find((s) => s.key === 'work_week_days');
   const aiRefinementSetting = appSettings.find((s) => s.key === 'ai_refinement_enabled');
   const autoApiSetting = appSettings.find((s) => s.key === 'auto_api_enabled');
+  const calendarSubscribeSetting = appSettings.find((s) => s.key === 'calendar_subscribe_enabled');
 
   const tabs: { key: AdminTab; label: string; icon: any }[] = [
     { key: 'overview', label: 'Overview', icon: BarChart3 },
@@ -735,6 +735,23 @@ export default function Admin() {
                           checked={autoApiSetting?.value?.enabled ?? true}
                           onCheckedChange={(checked) =>
                             updateAppSetting('auto_api_enabled', { enabled: checked })
+                          }
+                        />
+                      </label>
+                      <label className="flex items-center justify-between cursor-pointer px-6 py-4 hover:bg-secondary/30 transition-colors">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                            <Rss className="w-4 h-4 text-primary" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold">Calendar Subscribe</p>
+                            <p className="text-[10px] text-muted-foreground">Show the webcal subscribe feed option to users</p>
+                          </div>
+                        </div>
+                        <Switch
+                          checked={calendarSubscribeSetting?.value?.enabled ?? true}
+                          onCheckedChange={(checked) =>
+                            updateAppSetting('calendar_subscribe_enabled', { enabled: checked })
                           }
                         />
                       </label>

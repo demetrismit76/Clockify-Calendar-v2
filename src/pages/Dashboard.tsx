@@ -460,33 +460,10 @@ export default function Dashboard() {
     });
     lines.push('END:VCALENDAR');
     const icsContent = lines.join('\r\n');
-    // Also update the webcal feed if enabled, filtered by feedRange
+    // Also update the webcal feed if enabled — store ALL entries unfiltered; the edge function filters by feed_range dynamically
     if (feedUrl) {
-      const now = new Date();
-      let rangeStart: Date;
-      let rangeEnd: Date;
-      if (feedRange === 'day') {
-        rangeStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        rangeEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-      } else if (feedRange === 'month') {
-        rangeStart = new Date(now.getFullYear(), now.getMonth(), 1);
-        rangeEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
-      } else {
-        // week — Monday to Sunday
-        const day = now.getDay();
-        const diff = day === 0 ? 6 : day - 1;
-        rangeStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - diff);
-        rangeEnd = new Date(rangeStart);
-        rangeEnd.setDate(rangeStart.getDate() + 6);
-        rangeEnd.setHours(23, 59, 59, 999);
-      }
-      const feedEntries = selectedData.filter((e) => {
-        const d = new Date(e.timeInterval.start);
-        return d >= rangeStart && d <= rangeEnd;
-      });
-      // Build feed ICS with stable UIDs
       const feedLines: string[] = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'CALSCALE:GREGORIAN', 'PRODID:-//Syncly//EN', 'X-WR-CALNAME:Syncly Feed'];
-      feedEntries.forEach((e) => {
+      selectedData.forEach((e) => {
         const fmtFeed = (iso: string) => iso.replace(/[-:]/g, '').replace(/\.\d+/, '').replace(/Z$/, '') + 'Z';
         const s = fmtFeed(e.timeInterval.start);
         const ed = fmtFeed(e.timeInterval.end);

@@ -10,10 +10,10 @@ export function useCalendarFeed() {
   const [feedRange, setFeedRange] = useState<FeedRange>('week');
   const [loading, setLoading] = useState(true);
 
-  const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 
   const feedUrl = feedToken
-    ? `https://${projectId}.supabase.co/functions/v1/calendar-feed?token=${feedToken}`
+    ? `${supabaseUrl}/functions/v1/calendar-feed?token=${feedToken}`
     : null;
 
   const webcalUrl = feedUrl?.replace(/^https:\/\//, 'webcal://') ?? null;

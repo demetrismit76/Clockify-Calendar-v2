@@ -50,7 +50,7 @@ export default function Dashboard() {
   } = useDashboardState();
 
   const { layoutPreset, sidebarColor } = useThemePreset();
-  const { isTeamLead } = useUserRole();
+  const { isTeamLead, isAdmin } = useUserRole();
   const [settingsCollapsed, setSettingsCollapsed] = useState(false);
   const [teamReportOpen, setTeamReportOpen] = useState(false);
   const [icsPreviewOpen, setIcsPreviewOpen] = useState(false);
@@ -80,16 +80,25 @@ export default function Dashboard() {
         setWorkWeekDays((workWeekRes.data.value as any).days);
       }
       if (aiRes.data?.value && typeof aiRes.data.value === 'object') {
-        setGlobalAiEnabled((aiRes.data.value as any).enabled ?? true);
+        const v = aiRes.data.value as any;
+        const enabled = v.enabled ?? true;
+        const adminOnly = v.admin_only ?? false;
+        setGlobalAiEnabled(enabled ? (!adminOnly || isAdmin) : (adminOnly && isAdmin));
       }
       if (autoApiRes.data?.value && typeof autoApiRes.data.value === 'object') {
-        setGlobalAutoApiEnabled((autoApiRes.data.value as any).enabled ?? true);
+        const v = autoApiRes.data.value as any;
+        const enabled = v.enabled ?? true;
+        const adminOnly = v.admin_only ?? false;
+        setGlobalAutoApiEnabled(enabled ? (!adminOnly || isAdmin) : (adminOnly && isAdmin));
       }
       if (calSubRes.data?.value && typeof calSubRes.data.value === 'object') {
-        setGlobalCalendarSubscribeEnabled((calSubRes.data.value as any).enabled ?? true);
+        const v = calSubRes.data.value as any;
+        const enabled = v.enabled ?? true;
+        const adminOnly = v.admin_only ?? false;
+        setGlobalCalendarSubscribeEnabled(enabled ? (!adminOnly || isAdmin) : (adminOnly && isAdmin));
       }
     });
-  }, []);
+  }, [isAdmin]);
 
   // Sync settings from DB — only on first load
   useEffect(() => {
@@ -899,7 +908,7 @@ export default function Dashboard() {
         )}
 
         {/* Main Content */}
-        <div className={`${isTopNav ? '' : isMinimal ? 'lg:col-span-8' : 'lg:col-span-9'} ${isCompact ? 'space-y-2' : 'space-y-4'}`}>
+        <div className={`${isTopNav ? '' : isMinimal ? 'lg:col-span-8' : 'lg:col-span-9'} ${isCompact ? 'space-y-2' : 'space-y-4'} ${entries.length > 0 ? 'pb-36' : ''}`}>
           <div className="flex flex-col gap-5">
             <div className="flex items-end justify-between border-b border-border pb-4">
               <div className="flex items-center gap-4">

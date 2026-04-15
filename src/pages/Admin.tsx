@@ -956,57 +956,93 @@ export default function Admin() {
                   </CardHeader>
                   <CardContent className="p-0">
                     <div className="divide-y divide-border">
-                      <label className="flex items-center justify-between cursor-pointer px-6 py-4 hover:bg-secondary/30 transition-colors">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                            <Zap className="w-4 h-4 text-primary" />
+                      <div className="px-6 py-4 hover:bg-secondary/30 transition-colors">
+                        <label className="flex items-center justify-between cursor-pointer">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                              <Zap className="w-4 h-4 text-primary" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-semibold">AI Refinement</p>
+                              <p className="text-[10px] text-muted-foreground">Allow users to refine descriptions with AI</p>
+                            </div>
                           </div>
-                          <div>
-                            <p className="text-sm font-semibold">AI Refinement</p>
-                            <p className="text-[10px] text-muted-foreground">Allow users to refine descriptions with AI</p>
+                          <Switch
+                            checked={aiRefinementSetting?.value?.enabled ?? true}
+                            onCheckedChange={(checked) =>
+                              updateAppSetting('ai_refinement_enabled', { ...aiRefinementSetting?.value, enabled: checked })
+                            }
+                          />
+                        </label>
+                        <label className="flex items-center justify-between cursor-pointer ml-11 mt-2 px-3 py-2 rounded-lg bg-secondary/40">
+                          <span className="text-[10px] font-medium text-muted-foreground">Admin Only</span>
+                          <Switch
+                            className="scale-75"
+                            checked={aiRefinementSetting?.value?.admin_only ?? false}
+                            onCheckedChange={(checked) =>
+                              updateAppSetting('ai_refinement_enabled', { ...aiRefinementSetting?.value, admin_only: checked })
+                            }
+                          />
+                        </label>
+                      </div>
+                      <div className="px-6 py-4 hover:bg-secondary/30 transition-colors">
+                        <label className="flex items-center justify-between cursor-pointer">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                              <Activity className="w-4 h-4 text-primary" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-semibold">Auto API Sync</p>
+                              <p className="text-[10px] text-muted-foreground">Show the Auto API sync mode option to users</p>
+                            </div>
                           </div>
-                        </div>
-                        <Switch
-                          checked={aiRefinementSetting?.value?.enabled ?? true}
-                          onCheckedChange={(checked) =>
-                            updateAppSetting('ai_refinement_enabled', { enabled: checked })
-                          }
-                        />
-                      </label>
-                      <label className="flex items-center justify-between cursor-pointer px-6 py-4 hover:bg-secondary/30 transition-colors">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                            <Activity className="w-4 h-4 text-primary" />
+                          <Switch
+                            checked={autoApiSetting?.value?.enabled ?? true}
+                            onCheckedChange={(checked) =>
+                              updateAppSetting('auto_api_enabled', { ...autoApiSetting?.value, enabled: checked })
+                            }
+                          />
+                        </label>
+                        <label className="flex items-center justify-between cursor-pointer ml-11 mt-2 px-3 py-2 rounded-lg bg-secondary/40">
+                          <span className="text-[10px] font-medium text-muted-foreground">Admin Only</span>
+                          <Switch
+                            className="scale-75"
+                            checked={autoApiSetting?.value?.admin_only ?? false}
+                            onCheckedChange={(checked) =>
+                              updateAppSetting('auto_api_enabled', { ...autoApiSetting?.value, admin_only: checked })
+                            }
+                          />
+                        </label>
+                      </div>
+                      <div className="px-6 py-4 hover:bg-secondary/30 transition-colors">
+                        <label className="flex items-center justify-between cursor-pointer">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                              <Rss className="w-4 h-4 text-primary" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-semibold">Calendar Subscribe</p>
+                              <p className="text-[10px] text-muted-foreground">Show the webcal subscribe feed option to users</p>
+                            </div>
                           </div>
-                          <div>
-                            <p className="text-sm font-semibold">Auto API Sync</p>
-                            <p className="text-[10px] text-muted-foreground">Show the Auto API sync mode option to users</p>
-                          </div>
-                        </div>
-                        <Switch
-                          checked={autoApiSetting?.value?.enabled ?? true}
-                          onCheckedChange={(checked) =>
-                            updateAppSetting('auto_api_enabled', { enabled: checked })
-                          }
-                        />
-                      </label>
-                      <label className="flex items-center justify-between cursor-pointer px-6 py-4 hover:bg-secondary/30 transition-colors">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                            <Rss className="w-4 h-4 text-primary" />
-                          </div>
-                          <div>
-                            <p className="text-sm font-semibold">Calendar Subscribe</p>
-                            <p className="text-[10px] text-muted-foreground">Show the webcal subscribe feed option to users</p>
-                          </div>
-                        </div>
-                        <Switch
-                          checked={calendarSubscribeSetting?.value?.enabled ?? true}
-                          onCheckedChange={(checked) =>
-                            updateAppSetting('calendar_subscribe_enabled', { enabled: checked })
-                          }
-                        />
-                      </label>
+                          <Switch
+                            checked={calendarSubscribeSetting?.value?.enabled ?? true}
+                            onCheckedChange={(checked) =>
+                              updateAppSetting('calendar_subscribe_enabled', { ...calendarSubscribeSetting?.value, enabled: checked })
+                            }
+                          />
+                        </label>
+                        <label className="flex items-center justify-between cursor-pointer ml-11 mt-2 px-3 py-2 rounded-lg bg-secondary/40">
+                          <span className="text-[10px] font-medium text-muted-foreground">Admin Only</span>
+                          <Switch
+                            className="scale-75"
+                            checked={calendarSubscribeSetting?.value?.admin_only ?? false}
+                            onCheckedChange={(checked) =>
+                              updateAppSetting('calendar_subscribe_enabled', { ...calendarSubscribeSetting?.value, admin_only: checked })
+                            }
+                          />
+                        </label>
+                      </div>
                       <label className="flex items-center justify-between cursor-pointer px-6 py-4 hover:bg-secondary/30 transition-colors">
                         <div className="flex items-center gap-3">
                           <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">

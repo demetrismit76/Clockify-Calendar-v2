@@ -1,17 +1,27 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
+};
+
 serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
   const url = new URL(req.url);
   const token = url.searchParams.get("token");
 
   if (!token) {
-    return new Response("Missing token", { status: 400 });
+    return new Response("Missing token", { status: 400, headers: corsHeaders });
   }
 
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   if (!uuidRegex.test(token)) {
-    return new Response("Invalid token", { status: 400 });
+    return new Response("Invalid token", { status: 400, headers: corsHeaders });
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -25,7 +35,7 @@ serve(async (req) => {
     .single();
 
   if (error || !data) {
-    return new Response("Feed not found", { status: 404 });
+    return new Response("Feed not found", { status: 404, headers: corsHeaders });
   }
 
   if (!data.ics_content) {
@@ -40,6 +50,7 @@ serve(async (req) => {
 
     return new Response(empty, {
       headers: {
+        ...corsHeaders,
         "Content-Type": "text/calendar; charset=utf-8",
         "Content-Disposition": `inline; filename="${data.feed_name || "feed"}.ics"`,
         "Cache-Control": "no-cache, no-store, must-revalidate",
@@ -50,6 +61,7 @@ serve(async (req) => {
   // Build response first
   const response = new Response(data.ics_content, {
     headers: {
+      ...corsHeaders,
       "Content-Type": "text/calendar; charset=utf-8",
       "Content-Disposition": `inline; filename="${data.feed_name || "feed"}.ics"`,
       "Cache-Control": "no-cache, no-store, must-revalidate",
@@ -60,10 +72,8 @@ serve(async (req) => {
   const userId = data.user_id;
   const icsContent = data.ics_content;
 
-  // Use waitUntil-style: fire and forget after response
   (async () => {
     try {
-      // Rate limit: check last webcal_feed entry for this user
       const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
       const { data: recent } = await supabase
         .from("sync_history")
@@ -73,9 +83,8 @@ serve(async (req) => {
         .gte("created_at", thirtyMinAgo)
         .limit(1);
 
-      if (recent && recent.length > 0) return; // Skip if recent
+      if (recent && recent.length > 0) return;
 
-      // Count VEVENT blocks
       const eventCount = (icsContent.match(/BEGIN:VEVENT/g) || []).length;
 
       await supabase.from("sync_history").insert({
@@ -85,7 +94,7 @@ serve(async (req) => {
         status: "success",
       });
     } catch (_e) {
-      // Silent fail — don't break feed serving
+      // Silent fail
     }
   })();
 

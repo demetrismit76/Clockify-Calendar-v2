@@ -14,6 +14,54 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_notification_reads: {
+        Row: {
+          id: string
+          notification_key: string
+          read_at: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          notification_key: string
+          read_at?: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          notification_key?: string
+          read_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      announcements: {
+        Row: {
+          active: boolean
+          created_at: string
+          created_by: string | null
+          id: string
+          message: string
+          type: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          message: string
+          type?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          message?: string
+          type?: string
+        }
+        Relationships: []
+      }
       app_settings: {
         Row: {
           id: string
@@ -70,6 +118,35 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      notification_reads: {
+        Row: {
+          announcement_id: string
+          id: string
+          read_at: string
+          user_id: string
+        }
+        Insert: {
+          announcement_id: string
+          id?: string
+          read_at?: string
+          user_id: string
+        }
+        Update: {
+          announcement_id?: string
+          id?: string
+          read_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_reads_announcement_id_fkey"
+            columns: ["announcement_id"]
+            isOneToOne: false
+            referencedRelation: "announcements"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -277,25 +354,6 @@ export type Database = {
     }
     Functions: {
       get_team_member_ids: { Args: { _user_id: string }; Returns: string[] }
-      get_user_settings_safe: {
-        Args: never
-        Returns: {
-          ai_enabled: boolean
-          approved: boolean
-          banned: boolean
-          calendar_target: string
-          created_at: string
-          dark_mode: boolean
-          default_last_week: boolean
-          id: string
-          include_project_in_description: boolean
-          layout_preset: string
-          sync_mode: string
-          theme_preset: string
-          updated_at: string
-          user_id: string
-        }[]
-      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

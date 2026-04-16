@@ -7,74 +7,123 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
+const CLOCKIFY_BASE = "https://api.clockify.me/api/v1";
+
 function computeRange(feedRange: string): { start: Date; end: Date } {
   const now = new Date();
   let start: Date;
   let end: Date;
 
   if (feedRange === "day") {
-    start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999));
   } else if (feedRange === "month") {
-    start = new Date(now.getFullYear(), now.getMonth(), 1);
-    end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+    start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0, 23, 59, 59, 999));
   } else {
     // week — Monday to Sunday
-    const day = now.getDay();
+    const day = now.getUTCDay();
     const diff = day === 0 ? 6 : day - 1;
-    start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - diff);
+    start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - diff));
     end = new Date(start.getTime());
-    end.setDate(start.getDate() + 6);
-    end.setHours(23, 59, 59, 999);
+    end.setUTCDate(start.getUTCDate() + 6);
+    end.setUTCHours(23, 59, 59, 999);
   }
 
   return { start, end };
 }
 
-function parseDtstart(line: string): Date | null {
-  // DTSTART:20250415T080000Z
-  const val = line.replace(/^DTSTART[^:]*:/, "").trim();
-  const m = val.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})/);
-  if (!m) return null;
-  return new Date(
-    Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6])
-  );
+function escapeICS(text: string): string {
+  return text.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\n/g, "\\n");
 }
 
-function filterIcsByRange(icsContent: string, feedRange: string): string {
-  const { start, end } = computeRange(feedRange);
+function fmtDt(iso: string): string {
+  return iso.replace(/[-:]/g, "").replace(/\.\d+/, "").replace(/Z$/, "") + "Z";
+}
 
-  // Split into VEVENT blocks
-  const header: string[] = [];
-  const events: string[] = [];
-  let inEvent = false;
-  let currentEvent: string[] = [];
+interface ClockifyEntry {
+  id: string;
+  description: string;
+  timeInterval: { start: string; end: string; duration: string };
+  project?: { name: string } | null;
+  projectName?: string;
+}
 
-  for (const line of icsContent.split(/\r?\n/)) {
-    if (line === "BEGIN:VEVENT") {
-      inEvent = true;
-      currentEvent = [line];
-    } else if (line === "END:VEVENT") {
-      currentEvent.push(line);
-      events.push(currentEvent.join("\r\n"));
-      inEvent = false;
-    } else if (inEvent) {
-      currentEvent.push(line);
-    } else if (line !== "END:VCALENDAR" && line.trim()) {
-      header.push(line);
+async function fetchClockifyEntries(
+  apiKey: string,
+  startDate: Date,
+  endDate: Date,
+  includeProjectPrefix: boolean
+): Promise<{ ics: string; count: number }> {
+  // Get current user
+  const userRes = await fetch(`${CLOCKIFY_BASE}/user`, {
+    headers: { "X-Api-Key": apiKey, "Content-Type": "application/json" },
+  });
+  if (!userRes.ok) throw new Error("Clockify auth failed");
+  const user = await userRes.json();
+
+  // Get workspaces
+  const wsRes = await fetch(`${CLOCKIFY_BASE}/workspaces`, {
+    headers: { "X-Api-Key": apiKey, "Content-Type": "application/json" },
+  });
+  if (!wsRes.ok) throw new Error("Failed to fetch workspaces");
+  const workspaces = await wsRes.json();
+
+  // Fetch from all workspaces
+  const allEntries: ClockifyEntry[] = [];
+  for (const ws of workspaces) {
+    const params = new URLSearchParams({
+      start: startDate.toISOString(),
+      end: endDate.toISOString(),
+      hydrated: "true",
+      "page-size": "1000",
+    });
+    const res = await fetch(
+      `${CLOCKIFY_BASE}/workspaces/${ws.id}/user/${user.id}/time-entries?${params}`,
+      { headers: { "X-Api-Key": apiKey, "Content-Type": "application/json" } }
+    );
+    if (res.ok) {
+      const entries = await res.json();
+      allEntries.push(
+        ...entries.map((e: any) => ({
+          ...e,
+          projectName: e.project?.name || "No Project",
+        }))
+      );
     }
   }
 
-  // Filter events by DTSTART within range
-  const filtered = events.filter((block) => {
-    const dtstartLine = block.split(/\r?\n/).find((l) => l.startsWith("DTSTART"));
-    if (!dtstartLine) return false;
-    const dt = parseDtstart(dtstartLine);
-    if (!dt) return false;
-    return dt >= start && dt <= end;
-  });
+  // Build ICS
+  const lines: string[] = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "CALSCALE:GREGORIAN",
+    "PRODID:-//Syncly//EN",
+    "X-WR-CALNAME:Syncly Feed",
+  ];
 
-  return [...header, ...filtered, "END:VCALENDAR"].join("\r\n");
+  for (const e of allEntries) {
+    if (!e.timeInterval?.start || !e.timeInterval?.end) continue;
+    const s = fmtDt(e.timeInterval.start);
+    const ed = fmtDt(e.timeInterval.end);
+    let summary = e.description || e.projectName || "Work Item";
+    if (includeProjectPrefix && e.projectName && e.projectName !== "No Project") {
+      summary = `Project: ${e.projectName} - ${summary}`;
+    }
+    lines.push(
+      "BEGIN:VEVENT",
+      `UID:${e.id}@syncly`,
+      `DTSTAMP:${s}`,
+      `DTSTART:${s}`,
+      `DTEND:${ed}`,
+      `SUMMARY:${escapeICS(summary)}`,
+      `DESCRIPTION:${escapeICS("Syncly Bridge Export")}`,
+      "END:VEVENT"
+    );
+  }
+
+  lines.push("END:VCALENDAR");
+  return { ics: lines.join("\r\n"), count: allEntries.length };
 }
 
 serve(async (req) => {
@@ -108,30 +157,63 @@ serve(async (req) => {
     return new Response("Feed not found", { status: 404, headers: corsHeaders });
   }
 
-  if (!data.ics_content) {
-    const empty = [
-      "BEGIN:VCALENDAR",
-      "VERSION:2.0",
-      "CALSCALE:GREGORIAN",
-      "PRODID:-//Syncly//EN",
-      "X-WR-CALNAME:" + (data.feed_name || "Syncly Feed"),
-      "END:VCALENDAR",
-    ].join("\r\n");
+  const feedRange = data.feed_range || "week";
+  const { start, end } = computeRange(feedRange);
 
-    return new Response(empty, {
-      headers: {
-        ...corsHeaders,
-        "Content-Type": "text/calendar; charset=utf-8",
-        "Content-Disposition": `inline; filename="${data.feed_name || "feed"}.ics"`,
-        "Cache-Control": "no-cache, no-store, must-revalidate",
-      },
-    });
+  // Try to fetch live from Clockify using the user's API key
+  let icsContent: string | null = null;
+  let liveCount = 0;
+
+  const { data: settings } = await supabase
+    .from("user_settings")
+    .select("clockify_api_key, include_project_prefix_ics")
+    .eq("user_id", data.user_id)
+    .single();
+
+  if (settings?.clockify_api_key) {
+    try {
+      const result = await fetchClockifyEntries(
+        settings.clockify_api_key,
+        start,
+        end,
+        settings.include_project_prefix_ics ?? false
+      );
+      icsContent = result.ics;
+      liveCount = result.count;
+
+      // Cache the result in the background
+      (async () => {
+        try {
+          await supabase
+            .from("calendar_feeds")
+            .update({ ics_content: icsContent })
+            .eq("feed_token", token);
+        } catch (_e) { /* silent */ }
+      })();
+    } catch (e) {
+      console.error("Clockify fetch failed, falling back to cached:", e);
+    }
   }
 
-  // Dynamically filter events by feed_range relative to today
-  const filteredIcs = filterIcsByRange(data.ics_content, data.feed_range || "week");
+  // Fallback to cached ICS if Clockify fetch failed or no API key
+  if (!icsContent) {
+    if (!data.ics_content) {
+      icsContent = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "CALSCALE:GREGORIAN",
+        "PRODID:-//Syncly//EN",
+        "X-WR-CALNAME:" + (data.feed_name || "Syncly Feed"),
+        "END:VCALENDAR",
+      ].join("\r\n");
+    } else {
+      icsContent = data.ics_content;
+    }
+  }
 
-  const response = new Response(filteredIcs, {
+  const eventCount = (icsContent.match(/BEGIN:VEVENT/g) || []).length;
+
+  const response = new Response(icsContent, {
     headers: {
       ...corsHeaders,
       "Content-Type": "text/calendar; charset=utf-8",
@@ -142,7 +224,6 @@ serve(async (req) => {
 
   // Record sync history in the background
   const userId = data.user_id;
-
   (async () => {
     try {
       const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
@@ -155,8 +236,6 @@ serve(async (req) => {
         .limit(1);
 
       if (recent && recent.length > 0) return;
-
-      const eventCount = (filteredIcs.match(/BEGIN:VEVENT/g) || []).length;
 
       await supabase.from("sync_history").insert({
         user_id: userId,

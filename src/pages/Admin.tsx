@@ -52,7 +52,249 @@ interface AppSetting {
   updated_at: string;
 }
 
-type AdminTab = 'overview' | 'users' | 'teams' | 'settings' | 'activity' | 'themes' | 'notifications';
+type AdminTab = 'overview' | 'users' | 'teams' | 'settings' | 'activity' | 'themes' | 'notifications' | 'feed-test';
+
+interface ParsedEvent {
+  uid: string;
+  summary: string;
+  dtstart: string;
+  dtend: string;
+  date: string;
+  time: string;
+  duration: string;
+}
+
+function parseDtToReadable(dt: string): { date: string; time: string } {
+  const m = dt.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})/);
+  if (!m) return { date: dt, time: '' };
+  const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]));
+  return {
+    date: d.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }),
+    time: d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+  };
+}
+
+function calcDuration(start: string, end: string): string {
+  const parse = (v: string) => {
+    const m = v.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})/);
+    return m ? Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]) : 0;
+  };
+  const diff = Math.max(0, parse(end) - parse(start));
+  const h = Math.floor(diff / 3600000);
+  const min = Math.floor((diff % 3600000) / 60000);
+  return h > 0 ? `${h}h ${min}m` : `${min}m`;
+}
+
+function parseIcsEvents(ics: string): ParsedEvent[] {
+  const blocks = ics.split('BEGIN:VEVENT').slice(1);
+  return blocks.map((block) => {
+    const get = (key: string) => {
+      const line = block.split(/\r?\n/).find((l) => l.startsWith(key + ':') || l.startsWith(key + ';'));
+      const raw = line?.replace(new RegExp(`^${key}[^:]*:`), '').trim() || '';
+      return raw.replace(/\\,/g, ',').replace(/\\;/g, ';').replace(/\\n/g, '\n').replace(/\\\\/g, '\\');
+    };
+    const dtstart = get('DTSTART');
+    const dtend = get('DTEND');
+    const { date, time } = parseDtToReadable(dtstart);
+    return {
+      uid: get('UID'),
+      summary: get('SUMMARY'),
+      dtstart,
+      dtend,
+      date,
+      time,
+      duration: calcDuration(dtstart, dtend),
+    };
+  });
+}
+
+function FeedTestPanel({ userId }: { userId?: string }) {
+  const [feedData, setFeedData] = useState<{ token: string; range: string } | null>(null);
+  const [icsText, setIcsText] = useState<string | null>(null);
+  const [events, setEvents] = useState<ParsedEvent[]>([]);
+  const [testLoading, setTestLoading] = useState(false);
+  const [fetchedAt, setFetchedAt] = useState<string | null>(null);
+  const [rangeUpdating, setRangeUpdating] = useState(false);
+
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+
+  useEffect(() => {
+    if (!userId) return;
+    supabase
+      .from('calendar_feeds')
+      .select('feed_token, feed_range')
+      .eq('user_id', userId)
+      .single()
+      .then(({ data }) => {
+        if (data) setFeedData({ token: data.feed_token, range: data.feed_range });
+      });
+  }, [userId]);
+
+  const updateRange = async (range: string) => {
+    if (!userId || !feedData) return;
+    setRangeUpdating(true);
+    setFeedData({ ...feedData, range });
+    await supabase
+      .from('calendar_feeds')
+      .update({ feed_range: range })
+      .eq('user_id', userId);
+    setRangeUpdating(false);
+  };
+
+  const fetchFeed = async () => {
+    if (!feedData) return;
+    setTestLoading(true);
+    try {
+      const res = await fetch(`${supabaseUrl}/functions/v1/calendar-feed?token=${feedData.token}`);
+      const text = await res.text();
+      setIcsText(text);
+      setEvents(parseIcsEvents(text));
+      setFetchedAt(new Date().toLocaleTimeString());
+    } catch {
+      setIcsText('Error fetching feed');
+      setEvents([]);
+    }
+    setTestLoading(false);
+  };
+
+  const rangeOptions = [
+    { value: 'day', label: 'Today' },
+    { value: 'week', label: 'Week' },
+    { value: 'month', label: 'Month' },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-3">
+        <h2 className="text-lg font-bold">Calendar Feed Test</h2>
+        <Badge variant="outline" className="text-[9px] uppercase tracking-widest">Temporary</Badge>
+      </div>
+
+      {!feedData ? (
+        <Card><CardContent className="p-6 text-sm text-muted-foreground">No calendar feed found for your account. Enable it from the Dashboard first.</CardContent></Card>
+      ) : (
+        <>
+          <div className="flex items-center gap-4 flex-wrap">
+            <div className="flex bg-secondary p-1 rounded-lg border border-border">
+              {rangeOptions.map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => updateRange(opt.value)}
+                  disabled={rangeUpdating}
+                  className={`px-4 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-widest transition-all ${
+                    feedData.range === opt.value
+                      ? 'bg-card text-foreground shadow-sm ring-1 ring-border'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            <Badge variant="secondary" className="text-xs">Token: {feedData.token.slice(0, 8)}…</Badge>
+            {fetchedAt && <span className="text-xs text-muted-foreground">Fetched at {fetchedAt}</span>}
+            {fetchedAt && <span className="text-xs text-muted-foreground">Fetched at {fetchedAt}</span>}
+            <Button size="sm" onClick={fetchFeed} disabled={testLoading} className="rounded-xl">
+              <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${testLoading ? 'animate-spin' : ''}`} />
+              {testLoading ? 'Fetching…' : 'Fetch Feed'}
+            </Button>
+          </div>
+
+          {icsText !== null && (() => {
+            const rangeLabel = feedData.range === 'day' ? 'Today' : feedData.range === 'week' ? 'This Week' : 'This Month';
+            const dates = events.map(e => e.dtstart).filter(Boolean).sort();
+            const earliest = dates.length > 0 ? parseDtToReadable(dates[0]).date : '—';
+            const latest = dates.length > 0 ? parseDtToReadable(dates[dates.length - 1]).date : '—';
+            return (
+              <Card className="border-border/50">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-6 text-xs flex-wrap">
+                    <div><span className="text-muted-foreground">Filter:</span> <strong>{rangeLabel}</strong></div>
+                    <div><span className="text-muted-foreground">Entries returned:</span> <strong>{events.length}</strong></div>
+                    {events.length > 0 && (
+                      <div><span className="text-muted-foreground">Date span:</span> <strong>{earliest}</strong> → <strong>{latest}</strong></div>
+                    )}
+                    {events.length > 0 && dates.length === events.length && new Set(events.map(e => e.date)).size <= 2 && feedData.range === 'month' && (
+                      <Badge variant="outline" className="text-[9px] text-amber-500 border-amber-500/30">
+                        <AlertTriangle className="w-3 h-3 mr-1" />
+                        Stored data only covers {new Set(events.map(e => e.date)).size} day(s) — re-export a full month from Dashboard
+                      </Badge>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })()}
+
+          {icsText !== null && events.length === 0 && (
+            <Card>
+              <CardContent className="p-10 text-center">
+                <CalendarDays className="w-10 h-10 mx-auto mb-3 text-muted-foreground/40" />
+                <p className="text-sm font-semibold mb-1">No entries for this range</p>
+                <p className="text-xs text-muted-foreground">
+                  The feed returned no events for <strong>{feedData.range === 'day' ? 'Today' : feedData.range === 'week' ? 'This Week' : 'This Month'}</strong>.
+                  This means no exported entries fall within this period.
+                </p>
+              </CardContent>
+            </Card>
+          )}
+
+          {events.length > 0 && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-bold flex items-center gap-2">
+                  Parsed Events
+                  <Badge className="text-[9px]">{events.length} entries</Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="overflow-auto max-h-[400px]">
+                  <table className="w-full text-xs">
+                    <thead className="bg-muted/50 sticky top-0">
+                      <tr>
+                        <th className="text-left px-4 py-2 font-semibold">Date</th>
+                        <th className="text-left px-4 py-2 font-semibold">Time</th>
+                        <th className="text-left px-4 py-2 font-semibold">Summary</th>
+                        <th className="text-left px-4 py-2 font-semibold">Duration</th>
+                        <th className="text-left px-4 py-2 font-semibold">UID</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {events.map((e, i) => (
+                        <tr key={i} className="border-t border-border/50 hover:bg-muted/30">
+                          <td className="px-4 py-2 whitespace-nowrap">{e.date}</td>
+                          <td className="px-4 py-2 whitespace-nowrap">{e.time}</td>
+                          <td className="px-4 py-2">{e.summary}</td>
+                          <td className="px-4 py-2 whitespace-nowrap">{e.duration}</td>
+                          <td className="px-4 py-2 text-muted-foreground truncate max-w-[150px]">{e.uid}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {icsText && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-bold">Raw ICS Output</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Textarea
+                  readOnly
+                  value={icsText}
+                  className="font-mono text-[10px] min-h-[200px] max-h-[400px]"
+                />
+              </CardContent>
+            </Card>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
 
 export default function Admin() {
   const { user } = useAuth();
@@ -394,6 +636,7 @@ export default function Admin() {
     { key: 'themes', label: 'Themes', icon: Palette },
     { key: 'activity', label: 'Activity', icon: Activity },
     { key: 'settings', label: 'Settings', icon: Settings },
+    ...(isAdmin ? [{ key: 'feed-test' as AdminTab, label: 'Feed Test', icon: Rss }] : []),
   ];
 
   return (
@@ -1186,6 +1429,9 @@ export default function Admin() {
                 </Card>
               </div>
             )}
+
+            {/* Feed Test Tab */}
+            {tab === 'feed-test' && isAdmin && <FeedTestPanel userId={user?.id} />}
           </>
         )}
       </main>

@@ -574,8 +574,16 @@ export default function Dashboard() {
 
   const renderTimelineRange = () => (
     <div className="space-y-3">
-      <div className="flex gap-1.5 flex-wrap">
+      <div className="flex gap-1 flex-wrap">
         {[
+          { label: 'Today', getRange: () => {
+            const now = new Date();
+            const y = now.getFullYear();
+            const m = String(now.getMonth() + 1).padStart(2, '0');
+            const d = String(now.getDate()).padStart(2, '0');
+            const today = `${y}-${m}-${d}`;
+            return { start: today, end: today };
+          }},
           { label: 'Last Week', getRange: () => {
             const now = new Date();
             const dayOfWeek = now.getDay();
@@ -609,7 +617,7 @@ export default function Dashboard() {
             key={preset.label}
             variant="outline"
             size="sm"
-            className="text-[9px] font-semibold uppercase tracking-wider flex-1 min-w-0 px-2 py-1 h-7"
+            className="text-[9px] font-semibold uppercase tracking-wider flex-1 min-w-0 px-1.5 py-1 h-7 whitespace-nowrap"
             onClick={() => {
               const range = preset.getRange();
               setDateRange(range);

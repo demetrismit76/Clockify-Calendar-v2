@@ -41,6 +41,13 @@ function fmtDt(iso: string): string {
   return iso.replace(/[-:]/g, "").replace(/\.\d+/, "").replace(/Z$/, "") + "Z";
 }
 
+function fmtDate(d: Date): string {
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(d.getUTCDate()).padStart(2, '0');
+  const yyyy = d.getUTCFullYear();
+  return `${mm}-${dd}-${yyyy}`;
+}
+
 interface ClockifyEntry {
   id: string;
   description: string;
@@ -217,7 +224,7 @@ serve(async (req) => {
     headers: {
       ...corsHeaders,
       "Content-Type": "text/calendar; charset=utf-8",
-      "Content-Disposition": `inline; filename="${data.feed_name || "feed"}.ics"`,
+      "Content-Disposition": `attachment; filename="Syncly_${fmtDate(start)}_to_${fmtDate(end)}.ics"`,
       "Cache-Control": "no-cache, no-store, must-revalidate",
     },
   });

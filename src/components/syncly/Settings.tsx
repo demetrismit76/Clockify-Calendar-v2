@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Sparkles, Hash, RefreshCw, Eye, EyeOff, Calendar, KeyRound, CheckCircle2, Pencil, SlidersHorizontal, Rss, Copy, Check, Download } from 'lucide-react';
+import { Sparkles, Hash, RefreshCw, Eye, EyeOff, Calendar, KeyRound, CheckCircle2, Pencil, SlidersHorizontal, Rss, Copy, Check, Download, Globe } from 'lucide-react';
+import { toast } from 'sonner';
 import { Textarea } from '@/components/ui/textarea';
 
 interface SettingsProps {
@@ -67,6 +68,8 @@ export default function Settings({
   const [msEditOpen, setMsEditOpen] = useState(false);
   const [editMsId, setEditMsId] = useState('');
   const [copied, setCopied] = useState(false);
+  const [copiedHttps, setCopiedHttps] = useState(false);
+  
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewContent, setPreviewContent] = useState('');
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -260,13 +263,13 @@ export default function Settings({
                   </button>
                 ))}
               </div>
-              <div className="flex gap-2 items-center mt-2">
-                <Input
-                  readOnly
-                  value={webcalUrl || ''}
-                  className="text-[10px] bg-secondary/50 font-mono"
-                  onFocus={(e) => e.target.select()}
-                />
+              <Input
+                readOnly
+                value={webcalUrl || ''}
+                className="text-[10px] bg-secondary/50 font-mono mt-2"
+                onFocus={(e) => e.target.select()}
+              />
+              <div className="flex gap-2 mt-2 justify-center">
                 <Button
                   variant="outline"
                   size="icon"
@@ -276,9 +279,22 @@ export default function Settings({
                     setCopied(true);
                     setTimeout(() => setCopied(false), 2000);
                   }}
-                  title="Copy URL"
+                  title="Copy Webcal URL"
                 >
                   {copied ? <Check className="w-4 h-4 text-primary" /> : <Copy className="w-4 h-4" />}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="shrink-0"
+                  onClick={() => {
+                    navigator.clipboard.writeText(feedUrl || '');
+                    setCopiedHttps(true);
+                    setTimeout(() => setCopiedHttps(false), 2000);
+                  }}
+                  title="Copy HTTPS URL (for Outlook)"
+                >
+                  {copiedHttps ? <Check className="w-4 h-4 text-primary" /> : <Globe className="w-4 h-4" />}
                 </Button>
                 <Button
                   variant="outline"
